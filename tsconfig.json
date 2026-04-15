@@ -1,0 +1,18 @@
+// tsconfig.json  (root)
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared-types"   },
+    { "path": "packages/kafka-client"   },
+    { "path": "packages/auth-middleware"},
+    { "path": "services//core/api-gateway"     },
+    { "path": "services/core/user-service"    },
+    { "path": "services/document-service"},
+    { "path": "services/approval-service"},
+    { "path": "services/execution-service"},
+    { "path": "services/notification-service"},
+    { "path": "services/audit-service"  },
+    { "path": "services/report-service" },
+    { "path": "services/sla-service"    }
+  ]
+}

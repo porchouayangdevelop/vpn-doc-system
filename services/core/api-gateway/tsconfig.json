@@ -1,0 +1,19 @@
+// services/api-gateway/tsconfig.json
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir":  "dist",
+    "rootDir": "src",
+    "composite": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "paths": {
+      "@vpndoc/shared-types": ["../../../packages/shared-types/src"],
+      "@/*": ["./src/*"]
+    }
+  },
+  "include":  ["src/**/*"],
+  "exclude":  ["node_modules", "dist"],
+  "references": [
+    { "path": "../../../packages/shared-types" }
+  ]
+}

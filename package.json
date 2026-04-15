@@ -1,0 +1,38 @@
+{
+  "name": "vpn-doc-system",
+  "version": "1.0.0",
+  "description": "create a vpn doc system microservice ecosystem (backend and frontend) using nodejs(fastify typescript) and nuxt4)",
+  "private": true,
+  "workspaces": [
+    "package/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev:gateway": "pnpm --filter api-gateway dev",
+    "dev:user": "pnpm --filter user-service dev",
+    "dev:document": "pnpm --filter document-service dev",
+    "dev:approval": "pnpm --filter approval-service dev",
+    "dev:notification": "pnpm --filter notification-service dev",
+    "dev:audit": "pnpm --filter audit-service dev",
+    "dev:execution": "pnpm --filter execution-service dev",
+    "dev:report": "pnpm --filter report-service dev",
+    "dev:sla": "pnpm --filter sla-service dev",
+    "build:all": "pnpm -r build",
+    "lint:all": "pnpm -r lint",
+    "type-check:all": "pnpm -r type-check",
+    "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infrastructure/docker-compose.yml down",
+    "migrate:all": "node infrastructure/scripts/migrate-all.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.32.1",
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "eslint": "^10.1.0",
+    "prettier": "^3.8.1",
+    "tsc": "^2.0.4",
+    "typescript": "^6.0.2"
+  }
+}

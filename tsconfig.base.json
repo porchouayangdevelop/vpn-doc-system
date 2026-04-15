@@ -1,0 +1,29 @@
+// tsconfig.base.json  (root)  ← VERSION ທີ່ FIXED
+{
+  "compilerOptions": {
+    "target":                     "ES2022",
+    "module":                     "esnext",
+    "moduleResolution":           "bundler",
+    "lib":                        ["ES2022"],
+    "strict":                     true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess":   true,
+    "noImplicitOverride":         true,
+    "strictNullChecks":           true,
+    "esModuleInterop":            true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck":               true,
+    "resolveJsonModule":          true,
+    "declaration":                true,
+    "declarationMap":             true,
+    "sourceMap":                  true,
+    "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": false,
+    "verbatimModuleSyntax":       false,
+    
+
+    "plugins": [
+      { "name": "typescript-plugin-css-modules" }
+    ]
+  }
+}

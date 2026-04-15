@@ -1,0 +1,9 @@
+// packages/shared-types/tsconfig.build.json  ← ສຳລັບ build ໂດຍສະເພາະ
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir":  "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*"]
+}

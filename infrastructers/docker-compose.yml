@@ -1,0 +1,130 @@
+# infrastructure/docker-compose.yml
+version: "3.9"
+
+services:
+
+  mariadb:
+    image: mariadb:11.4
+    container_name: vpndoc_mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass123
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --innodb-strict-mode=ON
+      --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: vpndoc_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --requirepass redispass123
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+
+  redpanda:
+    image: redpandadata/redpanda:v23.3.11
+    container_name: vpndoc_redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp 1
+      - --memory 512M
+      - --reserve-memory 0M
+      - --node-id 0
+      - --check=false
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://localhost:9092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082
+    ports:
+      - "9092:9092"
+      - "8082:8082"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+  # Authentik PostgreSQL
+  authentik_db:
+    image: postgres:16-alpine
+    container_name: vpndoc_authentik_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     authentik
+      POSTGRES_PASSWORD: authentikpass123
+      POSTGRES_DB:       authentik
+    volumes:
+      - authentik_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authentik"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  authentik_redis:
+    image: redis:7.2-alpine
+    container_name: vpndoc_authentik_redis
+    restart: unless-stopped
+    command: --save 60 1 --loglevel warning
+    volumes:
+      - authentik_redis_data:/data
+
+  authentik_server:
+    image: ghcr.io/goauthentik/server:2024.2.2
+    container_name: vpndoc_authentik_server
+    restart: unless-stopped
+    command: server
+    environment:
+      AUTHENTIK_REDIS__HOST:                authentik_redis
+      AUTHENTIK_POSTGRESQL__HOST:           authentik_db
+      AUTHENTIK_POSTGRESQL__USER:           authentik
+      AUTHENTIK_POSTGRESQL__NAME:           authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD:       authentikpass123
+      AUTHENTIK_SECRET_KEY:                 "change-me-in-production-min-50-chars-long!!"
+      AUTHENTIK_ERROR_REPORTING__ENABLED:   "false"
+      AUTHENTIK_LOG_LEVEL:                  info
+    ports:
+      - "9000:9000"
+      - "9443:9443"
+    depends_on:
+      authentik_db:
+        condition: service_healthy
+      authentik_redis:
+        condition: service_started
+    volumes:
+      - authentik_media:/media
+
+  authentik_worker:
+    image: ghcr.io/goauthentik/server:2024.2.2
+    container_name: vpndoc_authentik_worker
+    restart: unless-stopped
+    command: worker
+    environment:
+      AUTHENTIK_REDIS__HOST:          authentik_redis
+      AUTHENTIK_POSTGRESQL__HOST:     authentik_db
+      AUTHENTIK_POSTGRESQL__USER:     authentik
+      AUTHENTIK_POSTGRESQL__NAME:     authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: authentikpass123
+      AUTHENTIK_SECRET_KEY:           "change-me-in-production-min-50-chars-long!!"
+    depends_on: [authentik_db, authentik_redis]
+    volumes:
+      - authentik_media:/media
+
+volumes:
+  mariadb_data:
+  redpanda_data:
+  authentik_db_data:
+  authentik_redis_data:
+  authentik_media:

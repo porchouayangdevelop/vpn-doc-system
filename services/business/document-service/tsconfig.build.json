@@ -1,0 +1,11 @@
+// services/document-service/tsconfig.build.json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite":   false,
+    "incremental": false,
+    "outDir":      "dist",
+    "rootDir":     "src"
+  },
+  "include": ["src/**/*"]
+}

@@ -1,0 +1,56 @@
+// services/document-service/tsconfig.json  ← VERSION ທີ່ FIXED
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "declaration": true,
+    "sourceMap": true,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@vpndoc/shared-types": [
+        "../../../packages/shared-types/src"
+      ],
+      "@vpndoc/shared-types/*": [
+        "../../../packages/shared-types/src/*"
+      ],
+      "@vpndoc/kafka-client": [
+        "../../../packages/kafka-client/src"
+      ],
+      "@vpndoc/kafka-client/*": [
+        "../../../packages/kafka-client/src/*"
+      ],
+      "@vpndoc/auth-middleware": [
+        "../../../packages/auth-middleware/src"
+      ],
+      "@vpndoc/auth-middleware/*": [
+        "../../../packages/auth-middleware/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
+  "references": [
+  {
+    "path": "../../../packages/shared-types"
+  },
+  {
+    "path": "../../../packages/kafka-client"
+  },
+  {
+    "path": "../../../packages/auth-middleware"
+  }
+  ]
+}

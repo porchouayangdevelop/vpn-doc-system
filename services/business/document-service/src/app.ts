@@ -1,0 +1,1 @@
+import type { KafkaEvent, KafkaTopic } from '@vpndoc/shared-types'
