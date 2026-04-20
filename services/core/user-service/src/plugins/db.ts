@@ -6,8 +6,8 @@ import fp from "fastify-plugin";
 import { createPool, PoolConnection, Pool } from "mariadb";
 
 export interface Db {
-  query<T = any>(sql: string, params?: any[] | unknown[]): Promise<T>;
-  execute<T = any>(sql: string, params?: any[] | unknown[]): Promise<T>;
+  query<T = any>(sql: string, params?: unknown[]): Promise<T>;
+  execute<T = any>(sql: string, params?: unknown[]): Promise<T>;
   transaction<T>(fn: (tx: Db) => Promise<T>): Promise<T>;
   pool: Pool;
 }
@@ -15,31 +15,41 @@ export interface Db {
 function createDbPool(pool: Pool): Db {
   return {
     pool,
-
-    async query<T = any>(sql: string, params?: any[] | unknown[]): Promise<T> {
-      return pool.query(sql, params);
+    async query(sql, params) {
+      const con = await pool.getConnection();
+      try {
+        return con.query(sql, params);
+      } finally {
+        con.release();
+      }
     },
 
-    async execute<T = any>(
-      sql: string,
-      params?: any[] | unknown[],
-    ): Promise<T> {
-      return pool.query(sql, params);
+    async execute(sql, params) {
+      const con = await pool.getConnection();
+      try {
+        return con.execute(sql, params);
+      } finally {
+        con.release();
+      }
     },
 
-    async transaction(fn){
+    async transaction(fn) {
       const con = await pool.getConnection();
       try {
         await con.beginTransaction();
-        const tx:Db {
+        const tx: Db = {
           pool,
-          q
-          
-        }
+          query: (sql, params) => con.query(sql, params),
+          execute: (sql, params) => con.execute(sql, params),
+          transaction: () => {
+            throw new Error("Not supported");
+          },
+        };
 
+        const result = await fn(tx);
         await con.commit();
         return result;
-      } catch (error: any) {
+      } catch (error) {
         await con.rollback();
         throw error;
       } finally {
@@ -91,7 +101,9 @@ async function dbPlugin(app: FastifyInstance) {
 
   try {
     con = await PromisePool.getConnection();
+    await con.ping();
     app.log.info("Database connected");
+    con.release();
   } catch (err: any) {
     app.log.error(
       {
@@ -108,7 +120,7 @@ async function dbPlugin(app: FastifyInstance) {
     if (con) con.release();
   }
 
-  app.decorate("db", PromisePool);
+  app.decorate("db", createDbPool(PromisePool));
 
   app.addHook("onClose", async () => {
     await PromisePool.end();

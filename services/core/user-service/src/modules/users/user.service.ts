@@ -5,6 +5,7 @@ import type { FastifyInstance } from "fastify";
 import { User, UpdateUser, ListUsers } from "./user.schema";
 import { authentikClient } from "@/lib/authentik-client";
 import { mapAuthentikToBankProfile } from "@/lib/authentik-mapper";
+import { UserRepo } from "./user.repo";
 
 export interface BankUser {
   id: string;
@@ -31,10 +32,8 @@ export interface BankUsersList {
 }
 
 class UserService {
-  private users: BankUser[] = [];
-  private app;
-  constructor(app: FastifyInstance) {
-    this.app = app;
+  constructor({userRepo}: {userRepo: UserRepo}) {
+  
   }
 
   // ── Create user + Authentik account (admin) ───────────────
@@ -53,9 +52,6 @@ class UserService {
         message: "User with the same employee code or email already exists",
       };
     }
-
-    this.app.log.info({ email: dto.email }, "Creating user in Authentik...");
-
     const authentikUser = await authentikClient.createUser({
       username: dto.employee_code,
       name: dto.full_name,
@@ -69,10 +65,7 @@ class UserService {
       },
     });
 
-    this.app.log.info(
-      { authentikId: authentikUser },
-      "User created in Authentik",
-    );
+
 
     const ROLE_GROUP_MAP: Record<string, string> = {
       maker: "bank-makers",
@@ -93,10 +86,6 @@ class UserService {
       );
 
       if (!assigned) {
-        this.app.log.warn(
-          { groupName },
-          "Failed to assign user to group in Authentik",
-        );
         throw {
           statusCode: 500,
           message: "Failed to assign user to group in Authentik",

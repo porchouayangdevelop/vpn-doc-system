@@ -2,7 +2,6 @@ import { log } from "console";
 import { buildApp } from "./app";
 import { AppConfig } from "./config/app.config";
 import graceFulShutdown from "close-with-grace";
-
 const runServer = async () => {
   const app = await buildApp();
 
@@ -50,7 +49,6 @@ const runServer = async () => {
       port: AppConfig.port,
       host: AppConfig.host,
     });
-
 
     const publicHost =
       AppConfig.host === "0.0.0.0" ? "localhost" : AppConfig.host;

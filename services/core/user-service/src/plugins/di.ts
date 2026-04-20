@@ -13,6 +13,13 @@ import { DepartmentRepo } from "@/modules/departments/dep.repo";
 import { Pool, PoolConnection } from "mariadb";
 import Redis from "ioredis";
 import { BankRole } from "@vpndoc/shared-types";
+import { UserRepo } from "@/modules/users/user.repo";
+
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve, basename } from "node:path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 declare module "@fastify/awilix" {
   interface Cradle {
@@ -20,10 +27,13 @@ declare module "@fastify/awilix" {
     db: Pool;
     redis: Redis;
     logger: FastifyInstance["log"];
-    // userService: UserService;
-    // authService: AuthService;
+
     branchRepo: BranchRepo;
     depRepo: DepartmentRepo;
+    userRepo: UserRepo;
+
+    userService: UserService;
+    authService: AuthService;
   }
 
   interface RequestCradle {
@@ -50,32 +60,22 @@ export default fp(
       redis: asValue(fastify.redis),
       logger: asValue(fastify.log),
 
-      branchRepo: asClass(BranchRepo, {
-        lifetime: Lifetime.SINGLETON,
-        dispose: (mod) => mod.dispose(),
-      }),
-      depRepo: asClass(DepartmentRepo, {
-        lifetime: Lifetime.SINGLETON,
-        dispose: (mod) => mod.dispose(),
-      }),
-    });
+      // branchRepo: asClass(BranchRepo, {
+      //   lifetime: Lifetime.SINGLETON,
+      //   dispose: (mod) => mod.dispose(),
+      // }),
+      // depRepo: asClass(DepartmentRepo, {
+      //   lifetime: Lifetime.SINGLETON,
+      //   dispose: (mod) => mod.dispose(),
+      // }),
 
-    fastify.addHook("onRequest", (req, reply, done) => {
-      req.diScope.register({
-        userService: asFunction(
-          ({ userRepo, branchRepo, depRepo }) => {
-            return new UserService(userRepo, branchRepo, depRepo);
-          },
-          {
-            lifetime: Lifetime.SCOPED,
-          },
-        ),
-      });
-      done();
+      userRepo: asClass(UserRepo, {
+        lifetime: Lifetime.SINGLETON,
+      }),
     });
 
     fastify.log.info("DI registered");
   },
 
-  { name: "di", dependencies: ["db", "redis"] },
+  { name: "di", dependencies: ["db"] },
 );

@@ -1,16 +1,15 @@
-import { Pool, PoolConnection } from "mariadb";
 import { Department } from "./dep.schema";
+import { Db } from "@/plugins/db";
 
 export class DepartmentRepo {
-  private pool!: Pool;
-  constructor() {}
+  constructor(private deps: { db: Db }) {}
 
   /**
-   * Sets the pool connection for the repository.
-   * @param {Pool} pool The pool connection to use.
+   * Retrieve the database instance.
+   * @returns {Db} The database instance.
    */
-  setPool(pool: Pool) {
-    this.pool = pool;
+  private get db() {
+    return this.deps.db;
   }
 
   /**
@@ -18,24 +17,18 @@ export class DepartmentRepo {
    * @returns {Promise<Department[] | null>} A promise that resolves to an array of departments or null if an error occurs.
    */
   async findAll(): Promise<Department[] | null> {
-    let conn: PoolConnection | undefined;
     try {
-      conn = await this.pool.getConnection();
-      return await conn.query<Department[]>(
+      return await this.db.query<Department[]>(
         `SELECT * FROM departments where is_active = 1  ORDER BY code`,
       );
     } catch (error: any | unknown) {
       throw error.message;
-    } finally {
-      conn?.release();
     }
   }
 
   async findById(id: string): Promise<Department | null> {
-    let con: PoolConnection | undefined;
     try {
-      con = await this.pool.getConnection();
-      const rows = await con.query<Department[]>(
+      const rows = await this.db.query<Department[]>(
         `SELECT * FROM departments WHERE branch_id = ? AND is_active = 1 ORDER BY code`,
         [id],
       );
@@ -43,11 +36,9 @@ export class DepartmentRepo {
       return rows[0] ?? null;
     } catch (error: any | unknown) {
       throw error.message;
-    } finally {
-      con?.release();
     }
   }
   dispose() {
-    this.pool.end();
+    this.db.pool.end();
   }
 }
