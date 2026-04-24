@@ -36,7 +36,7 @@ const schema = Type.Object({
   
 
   //call authentik
-  AUTHENKTIK_CLIENT_ID: Type.String(),
+  AUTHENTIK_CLIENT_ID: Type.String(),
   AUTHENTIK_CLIENT_SECRET: Type.String(),
   AUTHENTIK_TOKEN_URL: Type.String(),
   AUTHENTIK_REVOKE_URL: Type.String(),

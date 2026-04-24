@@ -17,6 +17,7 @@ import { UserRepo } from "@/modules/users/user.repo";
 
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve, basename } from "node:path";
+import { AuthRepo } from "@/modules/auth/auth.repo";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -70,6 +71,17 @@ export default fp(
       // }),
 
       userRepo: asClass(UserRepo, {
+        lifetime: Lifetime.SINGLETON,
+      }),
+
+      authRepo: asClass(AuthRepo, {
+        lifetime: Lifetime.SINGLETON,
+      }),
+
+      userService: asClass(UserService, {
+        lifetime: Lifetime.SINGLETON,
+      }),
+      authService: asClass(AuthService, {
         lifetime: Lifetime.SINGLETON,
       }),
     });

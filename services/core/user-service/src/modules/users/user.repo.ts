@@ -1,14 +1,12 @@
 import { mapAuthentikToBankProfile } from "@/lib/authentik-mapper";
-import { Pool, PoolConnection } from "mariadb";
+import { Pool } from "mariadb";
 
 import { User, UpdateUser, ListUsers } from "./user.schema";
-import { randomUUID, hash } from "crypto";
-import bcrypt, { hashSync, compareSync, compare } from "bcrypt";
+import { randomUUID } from "crypto";
+import bcrypt from "bcrypt";
 import { authentikClient } from "@/lib/authentik-client";
 import { Type, type Static } from "@sinclair/typebox";
 import { Db } from "@/plugins/db";
-import { FastifyInstance } from "fastify";
-
 
 export const BankUser = Type.Object({
   id: Type.String(),
@@ -43,9 +41,17 @@ interface Dependencies {
 }
 
 export class UserRepo {
-  private readonly app: FastifyInstance;
-  constructor(private deps: { db: Db }) {
-    this.app = {} as FastifyInstance;
+  private log: any;
+  /**
+   * Constructor for UserRepo class
+   * @param {Dependencies} deps - contains the instance of the database
+   * @param {Object} log - contains the logging function
+   */
+  constructor(
+    private deps: { db: Db },
+    log: any,
+  ) {
+    this.log = log;
   }
 
   private get db() {
@@ -59,7 +65,7 @@ export class UserRepo {
   //   3. ສ້າງ bank profile ໃນ DB
   async createUserWithAuthentik(dto: User): Promise<BankUser> {
     const exists = await this.db.query<BankUser[]>(
-      `SELECT id FROM users WHERE employee_code = $1 or email = $2`,
+      `SELECT id FROM users WHERE employee_code = ? or email = ?`,
       [dto.employee_code, dto.email],
     );
     if (exists.length > 0) {
@@ -69,7 +75,7 @@ export class UserRepo {
       };
     }
 
-    this.app.log.info({ email: dto.email }, "Creating user in Authentik...");
+    this.log.info({ email: dto.email }, "Creating user in Authentik...");
 
     const authentikUser = await authentikClient.createUser({
       username: dto.employee_code,
@@ -84,10 +90,7 @@ export class UserRepo {
       },
     });
 
-    this.app.log.info(
-      { authentikId: authentikUser },
-      "User created in Authentik",
-    );
+    this.log.info({ authentikId: authentikUser }, "User created in Authentik");
 
     const ROLE_GROUP_MAP: Record<string, string> = {
       maker: "bank-makers",
@@ -108,7 +111,7 @@ export class UserRepo {
       );
 
       if (!assigned) {
-        this.app.log.warn(
+        this.log.warn(
           { groupName },
           "Failed to assign user to group in Authentik",
         );
@@ -121,7 +124,8 @@ export class UserRepo {
 
     const id = randomUUID();
     await this.db.query(
-      `INSERT INTO users (id, authentik_id, authentik_pk, employee_code, full_name, email, role, branch_id, department_id, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO users (id, authentik_id, authentik_pk, employee_code, full_name, email, role, branch_id, department_id, is_active) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         authentikUser.uuid,
@@ -135,11 +139,18 @@ export class UserRepo {
         true,
       ],
     );
-    this.app.log.info({ id }, "User created in both Authentik and DB");
+    this.log.info({ id }, "User created in both Authentik and DB");
 
     return (await this.getUserById(id))!;
   }
 
+  /**
+   * Creates a new user with the given details.
+   * If the user with the same employee code or email already exists, a 409 error will be thrown.
+   * @param {User} dto - The user details to create.
+   * @returns {Promise<BankUser>} - The newly created user.
+   * @throws {Error} - If the user with the same employee code or email already exists.
+   */
   async createUser(dto: User): Promise<BankUser> {
     const exists = await this.db.query<BankUser[]>(
       `SELECT id FROM users WHERE employee_code = ? or email = ?`,
@@ -157,7 +168,8 @@ export class UserRepo {
     const hash = dto.password ? await bcrypt.hash(dto.password, 12) : null;
 
     await this.db.query(
-      `INSERT INTO users (id, authentik_id, employee_code, full_name, email, role, branch_id, department_id, is_active, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, authentik_id, employee_code, full_name, email, role, branch_id, department_id, is_active, password_hash) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         "",
@@ -182,6 +194,11 @@ export class UserRepo {
     return user;
   }
 
+  /**
+   * Retrieves a user by its ID.
+   * @param {string} id The ID of the user to retrieve.
+   * @returns {Promise<BankUser | null>} A promise that resolves to a user object or null if the user does not exist.
+   */
   async getUserById(id: string): Promise<BankUser | null> {
     const rows = await this.db.query(
       `SELECT 
@@ -204,6 +221,11 @@ export class UserRepo {
     return rows[0] ?? null;
   }
 
+  /**
+   * Retrieves a list of users based on the provided query.
+   * @param {ListUsers} query The query object containing the parameters to filter the users by.
+   * @returns {Promise<ListUsers[] | any[]>} A promise that resolves to an array of user objects or an error object.
+   */
   async listUsers(query: ListUsers): Promise<ListUsers[] | any[]> {
     const where: string[] = ["1=1"];
     const params: unknown[] = [];
@@ -253,6 +275,14 @@ export class UserRepo {
     ];
   }
 
+  /**
+   * Updates a user by its ID.
+   * @param {string} id The ID of the user to update.
+   * @param {UpdateUser} dto The update user object containing the fields to update.
+   * @returns {Promise<BankUser>} A promise that resolves to the updated user object.
+   * @throws {Error} - If no fields are provided to update.
+   * @throws {Error} - If the user does not exist.
+   */
   async updateUser(id: string, dto: UpdateUser): Promise<BankUser> {
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -309,9 +339,7 @@ export class UserRepo {
     //find user on other active or used
     const user = await this.getUserById(id);
     if (!user) return false;
-    await this.db.query(`UPDATE users SET is_active = 0 WHERE id = ?`, [
-      id,
-    ]);
+    await this.db.query(`UPDATE users SET is_active = 0 WHERE id = ?`, [id]);
     return true;
   }
 
@@ -321,12 +349,12 @@ export class UserRepo {
     // check by authentik_id from db
     const exists = await this.getUserByAuthentikId(authentikId);
     if (exists) {
-     this.app.log.info({ authentikId }, "User already exists");
+      this.log.info({ authentikId }, "User already exists");
       return exists;
     }
 
     //check authentik api
-    this.app.log.info({ authentikId }, "Fetching user from authentik api...");
+    this.log.info({ authentikId }, "Fetching user from authentik api...");
     const authentikUser = await authentikClient.getFullUser(authentikId);
     if (!authentikUser) {
       throw {
@@ -335,7 +363,7 @@ export class UserRepo {
       };
     }
 
-    this.app.log.info(
+    this.log.info(
       {
         authentikId,
         email: authentikUser.email,
@@ -347,7 +375,7 @@ export class UserRepo {
     // ── 3. Map Authentik data → bank profile ────────────────
     const profile = mapAuthentikToBankProfile(authentikUser);
 
-    this.app.log.info(
+    this.log.info(
       {
         email: authentikUser.email,
         role: profile.role,
@@ -388,7 +416,7 @@ export class UserRepo {
           byEmail[0].id,
         ],
       );
-      this.app.log.info(
+      this.log.info(
         {
           id: byEmail[0].id,
         },
@@ -420,7 +448,7 @@ export class UserRepo {
       ],
     );
 
-    this.app.log.info(
+    this.log.info(
       {
         id,
         email: authentikUser.email,
@@ -467,7 +495,7 @@ export class UserRepo {
         userId,
       ],
     );
-    this.app.log.info(
+    this.log.info(
       {
         userId,
         role: profile.role,
@@ -479,10 +507,9 @@ export class UserRepo {
 
   // ── updateLastLogin ───────────────────────────────────────
   async updateLastLogin(userId: string): Promise<void> {
-    await this.db.query(
-      `UPDATE users SET last_login = now(3) WHERE id = ?`,
-      [userId],
-    );
+    await this.db.query(`UPDATE users SET last_login = now(3) WHERE id = ?`, [
+      userId,
+    ]);
   }
 
   // ── Provision (auto-create ເມື່ອ first login) ─────────────
@@ -497,10 +524,9 @@ export class UserRepo {
     if (user) return user;
 
     //check by email
-    const byEmail = await this.db.query(
-      `Select *from users where email = ?`,
-      [email],
-    );
+    const byEmail = await this.db.query(`Select *from users where email = ?`, [
+      email,
+    ]);
     if (byEmail[0]) {
       await this.db.query(``, [authentikId, byEmail[0].id]);
       return { ...byEmail[0], authentik_id: authentikId };
@@ -534,7 +560,7 @@ export class UserRepo {
         message: "Failed to provision user",
       };
     }
-    this.app.log.info({ id, email }, "Provisioned user");
+    this.log.info({ id, email }, "Provisioned user");
     return user;
   }
 }

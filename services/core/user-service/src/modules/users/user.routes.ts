@@ -1,11 +1,9 @@
-import  AuthService  from '@/modules/auth/auth.service';
 import { type FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import {
   CreateUserSchema,
   UpdateUserSchema,
   ListUsersQuerySchema,
 } from "./user.schema";
-import UserService from "./user.service";
 import {
   BadGatewayResponseSchema,
   SuccessResponseSchema,
@@ -23,8 +21,6 @@ import {
 import { Type } from "@sinclair/typebox";
 
 export default async function userRoutes(app: FastifyInstance) {
-  let authService = new AuthService(app);
-  let userService = new UserService(app);
   //get me
   app.get(
     "/me",
@@ -45,6 +41,8 @@ export default async function userRoutes(app: FastifyInstance) {
       preHandler: [app.requireAuth],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const { userService, authService } = req.diScope.cradle;
+
       const user = await authService.getMe(
         req.userCtx.userId,
         req.userCtx.authentikId,
@@ -84,6 +82,7 @@ export default async function userRoutes(app: FastifyInstance) {
       preHandler: [app.requireRoles(["admin", "it_header", "it_po"])],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const { userService, authService } = req.diScope.cradle;
       const query = ListUsersQuerySchema.parse(req.query);
       const result = await userService.listUsers(query);
       return reply.status(200).send({
@@ -129,6 +128,7 @@ export default async function userRoutes(app: FastifyInstance) {
       preHandler: [app.requireRoles(["admin", "it_header"])],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const { userService, authService } = req.diScope.cradle;
       const { id } = req.params as { id: string };
       const user = await userService.getUserById(id);
       if (!user) {
@@ -169,6 +169,7 @@ export default async function userRoutes(app: FastifyInstance) {
       preHandler: [app.requireRoles(["admin"])],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const { userService, authService } = req.diScope.cradle;
       const dto = CreateUserSchema.parse(req.body);
       const user = await userService.createUserWithAuthentik(dto);
       return reply.status(201).send({
@@ -202,6 +203,7 @@ export default async function userRoutes(app: FastifyInstance) {
       preHandler: [app.requireRoles(["admin"])],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const { userService, authService } = req.diScope.cradle;
       const { id } = req.params as { id: string };
       const dto = UpdateUserSchema.parse(req.body);
       const user = await userService.updateUser(id, dto);
@@ -238,6 +240,7 @@ export default async function userRoutes(app: FastifyInstance) {
       preHandler: [app.requireRoles(["admin"])],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const { userService, authService } = req.diScope.cradle;
       const { id } = req.params as { id: string };
       const user = await userService.deleteUser(id);
       return reply.status(200).send({
@@ -272,6 +275,7 @@ export default async function userRoutes(app: FastifyInstance) {
       preHandler: [app.requireRoles(["admin", "it_head"])],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const { userService, authService } = req.diScope.cradle;
       const { id } = req.params as { id: string };
       const user = await userService.syncFromAuthentik(id);
       return reply.status(200).send({

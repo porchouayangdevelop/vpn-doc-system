@@ -14,6 +14,8 @@ import {
   Type,
 } from "@fastify/type-provider-typebox";
 import devtools from "@attaryz/fastify-devtools";
+import logger from "@mgcrea/fastify-request-logger";
+import prettier from "@mgcrea/pino-pretty-compact";
 
 // "@vpndoc/shared-types": "workspace:*"
 const __filename = fileURLToPath(import.meta.url);
@@ -26,13 +28,19 @@ export async function buildApp(): Promise<FastifyInstance> {
       transport:
         process.env.NODE_ENV !== "production"
           ? {
+              // target: "@mgcrea/pino-pretty-compact",
               target: "pino-pretty",
-              options: { colorize: true },
+              options: {
+                colorize: true,
+                translateTime: "HH:MM:ss Z",
+                ignore: "pid,hostname",
+              },
             }
           : undefined,
     } as any,
-    disableRequestLogging: false,
+    disableRequestLogging: true,
     pluginTimeout: 20000,
+    trustProxy: true,
     genReqId: () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   })
     .withTypeProvider<TypeBoxTypeProvider>()
@@ -43,6 +51,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     dir: join(__dirname, "plugins"),
     forceESM: true,
   });
+
+  app.register(logger);
 
   //register routes
   await app.register(autoLoad, {

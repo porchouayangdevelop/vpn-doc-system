@@ -1,7 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-
-import AuthService from "../auth/auth.service";
-import { Type } from "@sinclair/typebox";
+import { LoginSchema, LoginResponseSchema } from "./auth.schema";
 import {
   BadGatewayResponseSchema,
   SuccessResponseSchema,
@@ -16,7 +14,6 @@ import {
   RequestTimeOutResponseSchema,
 } from "@/schemas/index";
 export default async function authRoute(app: FastifyInstance) {
-  let authService = new AuthService(app);
   //get me
   app.get(
     "/me",
@@ -30,21 +27,64 @@ export default async function authRoute(app: FastifyInstance) {
           },
         ],
         response: {
-          200: SuccessResponseSchema,
-          400: BadRequestResponseSchema,
-          401: UnAuthorizedResponseSchema,
-          408: RequestTimeOutResponseSchema,
-          500: InternalServerErrorResponseSchema,
-          502: BadGatewayResponseSchema,
+          200: LoginResponseSchema,
         },
       },
       preHandler: [app.requireAuth],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
+      const { authService } = req.diScope.cradle;
       const user = await authService.getMe(
         req.userCtx.userId,
         req.userCtx.authentikId,
       );
+      if (!user) {
+        return reply.status(404).send({
+          success: false,
+          error: "Not found",
+          message: "Missing user not found",
+        });
+      }
+      return reply.status(200).send({
+        success: true,
+        message: "User found",
+        data: user,
+      });
+    },
+  );
+
+  app.post(
+    "/signin",
+    {
+      schema: {
+        summary: "Signin",
+        tags: ["Auth"],
+        description: `[
+          'ເຂົ້າສູ່ລະບົບດ້ວຍ email + password.',
+        '',
+        '**Flow:**',
+        '1. ສົ່ງ credentials ໄປ Authentik (ROPC grant)',
+        '2. Authentik ກວດ + ອອກ access_token / refresh_token',
+        '3. Provision bank profile (ຖ້າ first login)',
+        '4. ຄືນ tokens + user profile',
+        '',
+        '> ⚠️ ROPC ຕ້ອງ enable ໃນ Authentik Provider settings',
+      ]`,
+        security: [],
+        body: LoginSchema,
+        response: {
+          200: LoginResponseSchema,
+        },
+      },
+    },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { authService } = req.diScope.cradle;
+      const { email, password } = req.body as {
+        email: string;
+        password: string;
+      };
+
+      const user = await authService.signin({ email, password });
       if (!user) {
         return reply.status(404).send({
           success: false,

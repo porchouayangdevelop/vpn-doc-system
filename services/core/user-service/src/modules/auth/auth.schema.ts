@@ -1,5 +1,6 @@
+import { type BankUser } from './../users/user.repo';
 import { Type, type Static } from "@sinclair/typebox";
-import type { BankUser } from "../users/user.service";
+
 export const LoginSchema = Type.Object({
   email: Type.String(),
   password: Type.String(),

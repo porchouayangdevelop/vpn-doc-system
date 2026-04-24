@@ -6,6 +6,7 @@
     "rootDir": "src",
     "composite": true,
     "tsBuildInfoFile": ".tsbuildinfo",
+    "exactOptionalPropertyTypes": true,
     "paths": {
       "@vpndoc/shared-types": ["../../../packages/shared-types/src"],
       "@/*": ["./src/*"]
