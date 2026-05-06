@@ -63,12 +63,12 @@ export default async function authRoute(app: FastifyInstance) {
           'ເຂົ້າສູ່ລະບົບດ້ວຍ email + password.',
         '',
         '**Flow:**',
-        '1. ສົ່ງ credentials ໄປ Authentik (ROPC grant)',
-        '2. Authentik ກວດ + ອອກ access_token / refresh_token',
+        '1. ສົ່ງ credentials ໄປ Keycloak (ROPC grant)',
+        '2. Keycloak ກວດ + ອອກ access_token / refresh_token',
         '3. Provision bank profile (ຖ້າ first login)',
         '4. ຄືນ tokens + user profile',
         '',
-        '> ⚠️ ROPC ຕ້ອງ enable ໃນ Authentik Provider settings',
+        '> ⚠️ ROPC ຕ້ອງ enable ໃນ Keycloak Client settings',
       ]`,
         security: [],
         body: LoginDto,
@@ -85,6 +85,8 @@ export default async function authRoute(app: FastifyInstance) {
       };
 
       const user = await authService.signin({ username: username, password });
+      console.log(user);
+      
       if (!user) {
         return reply.status(404).send({
           success: false,

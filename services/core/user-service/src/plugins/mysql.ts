@@ -1,19 +1,16 @@
 import fp from "fastify-plugin";
-import mysql, { FastifyMySQLOptions, MySQLPromisePool } from "@fastify/mysql";
+import mysql, { MySQLPromisePool } from "@fastify/mysql";
 import { type FastifyInstance, type FastifyPluginAsync } from "fastify";
-
-type mySqlOption = {
-  promise: boolean;
-  connectionString: string;
-} & FastifyMySQLOptions;
 
 async function mysqlPlugin(app: FastifyInstance) {
   await app.register(mysql, {
     promise: true,
-    connectionString: app.config.DB_URL,
-  } as mySqlOption);
-
-  // app.decorate("mysql", app.mysql);
+    host: app.config.DB_HOST,
+    port: app.config.DB_PORT,
+    user: app.config.DB_USER,
+    password: app.config.DB_PASS,
+    database: app.config.DB_NAME,
+  });
 }
 
 export default fp<FastifyPluginAsync>(mysqlPlugin, {

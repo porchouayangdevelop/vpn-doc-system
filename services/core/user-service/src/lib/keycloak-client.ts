@@ -1,4 +1,5 @@
 import kcAdminClient from "@keycloak/keycloak-admin-client";
+import https from "https";
 import { Type, type Static } from "@sinclair/typebox";
 
 export const KcUser = Type.Object({
@@ -69,6 +70,7 @@ class KeycloakClient {
     this.kc = new kcAdminClient({
       baseUrl: process.env.KEYCLOAK_BASE_URL!,
       realmName: this.realm!,
+    
     });
   }
 
@@ -85,6 +87,8 @@ class KeycloakClient {
     await this.auth();
     try {
       const user = await this.kc.users.findOne({ id, realm: this.realm! });
+      console.log(user);
+      
       if (!user?.id) return null;
 
       const roleMappings = await this.kc.users.listRealmRoleMappings({

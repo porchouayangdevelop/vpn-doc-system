@@ -1,6 +1,6 @@
 import { type FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import {
-  CreateUserSchema,
+  CreateUserWithKeycloakDto,
   UpdateUserSchema,
   ListUsersQuerySchema,
 } from "./user.schema";
@@ -154,7 +154,7 @@ export default async function userRoutes(app: FastifyInstance) {
         summary: "Create user",
         tags: ["Users"],
         security: [{ bearerAuth: [] }],
-        body: CreateUserSchema,
+        body: CreateUserWithKeycloakDto,
         response: {
           // 200: SuccessResponseSchema,
           201: CreateResponseSchema,
@@ -170,8 +170,8 @@ export default async function userRoutes(app: FastifyInstance) {
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { userService, authService } = req.diScope.cradle;
-      const dto = CreateUserSchema.parse(req.body);
-      const user = await userService.createUserWithAuthentik(dto);
+      const dto = CreateUserWithKeycloakDto.parse(req.body);
+      const user = await userService.createUserWithKeycloak(dto);
       return reply.status(201).send({
         success: true,
         message: "User created",
@@ -277,7 +277,7 @@ export default async function userRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { userService, authService } = req.diScope.cradle;
       const { id } = req.params as { id: string };
-      const user = await userService.syncFromAuthentik(id);
+      const user = await userService.syncFromAuth(id);
       return reply.status(200).send({
         success: true,
         message: "User synced",

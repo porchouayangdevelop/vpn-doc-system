@@ -145,3 +145,4 @@ export type User = Static<typeof CreateUserSchema>;
 export type UpdateUser = Static<typeof UpdateUserSchema>;
 export type ListUsers = Static<typeof ListUsersQuerySchema>;
 export type ParamsType = Static<typeof ParamsSchema>;
+export type CreateUserWithKeycloakInput = Static<typeof CreateUserWithKeycloakDto>;

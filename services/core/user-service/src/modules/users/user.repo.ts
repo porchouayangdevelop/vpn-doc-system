@@ -1,8 +1,12 @@
-import { Pool } from "mariadb";
-import { User, UpdateUser, ListUsers } from "./user.schema";
+import {
+  User,
+  UpdateUser,
+  ListUsers,
+  CreateUserWithKeycloakDto,
+} from "./user.schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
-import { Type, type Static } from "@sinclair/typebox";
+import { Type, Static } from "@sinclair/typebox";
 import { Db } from "@/plugins/db";
 import { keycloakClient } from "@/lib/keycloak-client";
 import { mapKcUser } from "@/lib/keycloak-mapper";
@@ -35,34 +39,21 @@ export const BankUserList = Type.Object({
 export type BankUser = Static<typeof BankUser>;
 export type BankUserList = Static<typeof BankUserList>;
 
-interface Dependencies {
-  pool: Pool;
-}
-
 export class UserRepo {
-  private log: any;
   /**
    * Constructor for UserRepo class
    * @param {Dependencies} deps - contains the instance of the database
    * @param {Object} log - contains the logging function
    */
-  constructor(
-    private deps: { db: Db },
-    log: any,
-  ) {
-    this.log = log;
-  }
+  constructor(private deps: { db: Db }) {}
 
   private get db() {
     return this.deps.db;
   }
 
-  // ── Create user + Authentik account (admin) ───────────────
-  // Admin ສ້າງ user ໂດຍ:
-  //   1. ສ້າງ account ໃນ Authentik API
-  //   2. Assign ໄປ group ຕາມ role
-  //   3. ສ້າງ bank profile ໃນ DB
-  async createUserWithKeycloak(dto: User): Promise<BankUser> {
+  async createUserWithKeycloak(
+    dto: Static<typeof CreateUserWithKeycloakDto>,
+  ): Promise<BankUser> {
     const exists = await this.db.query<BankUser[]>(
       `SELECT id FROM users WHERE employee_code = ? or email = ?`,
       [dto.employee_code, dto.email],
@@ -74,48 +65,29 @@ export class UserRepo {
       };
     }
 
-    this.log.info({ email: dto.email }, "Creating user in Keycloak...");
+    console.log({ email: dto.email }, "Creating user in Keycloak...");
 
     const keycloakUser = await keycloakClient.createUser({
-      username:dto.
-      
+      username: dto.username,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      email: dto.email,
+      password: dto.password,
+      enabled: true,
+      emailVerified: true,
+      employeeCode: dto.employee_code,
+      ...(dto.branch_id !== undefined ? { branchId: dto.branch_id } : {}),
+      ...(dto.department_id !== undefined
+        ? { departmentId: dto.department_id }
+        : {}),
+      role: dto.role,
     });
 
-    this.log.info({ keycloakId: keycloakUser }, "User created in Keycloak");
-
-    const ROLE_GROUP_MAP: Record<string, string> = {
-      maker: "bank-makers",
-      unit_head: "bank-unit-heads",
-      branch: "bank-branch",
-      department: "bank-department",
-      it_head: "bank-it-heads",
-      it_po: "bank-it-po",
-      it_staff: "bank-it-staff",
-      admin: "bank-admins",
-    };
-
-    const groupName = ROLE_GROUP_MAP[dto.role];
-    if (groupName) {
-      const assigned = await keycloakClient.addUserToGroup(
-        keycloakUser.id,
-        groupName,
-      );
-
-      if (!assigned) {
-        this.log.warn(
-          { groupName },
-          "Failed to assign user to group in Keycloak",
-        );
-        throw {
-          statusCode: 500,
-          message: "Failed to assign user to group in Authentik",
-        };
-      }
-    }
+    console.log({ keycloakId: keycloakUser.id }, "User created in Keycloak");
 
     const id = randomUUID();
     await this.db.query(
-      `INSERT INTO users (id, keycloak_id, employee_code, full_name, email, role, branch_id, department_id, is_active) 
+      `INSERT INTO users (id, keycloak_id, employee_code, full_name, email, role, branch_id, department_id, is_active)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
@@ -124,12 +96,12 @@ export class UserRepo {
         dto.full_name,
         dto.email,
         dto.role,
-        dto.branch_id,
+        dto.branch_id ?? null,
         dto.department_id ?? null,
         true,
       ],
     );
-    this.log.info({ id }, "User created in both Keycloak and DB");
+    console.log({ id }, "User created in both Keycloak and DB");
 
     return (await this.getUserById(id))!;
   }
@@ -158,7 +130,7 @@ export class UserRepo {
     const hash = dto.password ? await bcrypt.hash(dto.password, 12) : null;
 
     await this.db.query(
-      `INSERT INTO users (id, authentik_id, employee_code, full_name, email, role, branch_id, department_id, is_active, password_hash) 
+      `INSERT INTO users (id, keycloak_id, employee_code, full_name, email, role, branch_id, department_id, is_active, password_hash)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
@@ -277,27 +249,27 @@ export class UserRepo {
     const sets: string[] = [];
     const params: unknown[] = [];
 
-    if (dto.full_name !== undefined || !dto.full_name) {
+    if (dto.full_name !== undefined) {
       sets.push(`full_name = ?`);
       params.push(dto.full_name);
     }
-    if (dto.email !== undefined || !dto.email) {
+    if (dto.email !== undefined) {
       sets.push(`email = ?`);
       params.push(dto.email);
     }
-    if (dto.role !== undefined || !dto.role) {
+    if (dto.role !== undefined) {
       sets.push(`role = ?`);
       params.push(dto.role);
     }
-    if (dto.branch_id !== undefined || !dto.branch_id) {
+    if (dto.branch_id !== undefined) {
       sets.push(`branch_id = ?`);
       params.push(dto.branch_id);
     }
-    if (dto.department_id !== undefined || !dto.department_id) {
+    if (dto.department_id !== undefined) {
       sets.push(`department_id = ?`);
       params.push(dto.department_id);
     }
-    if (dto.is_active !== undefined || !dto.is_active) {
+    if (dto.is_active !== undefined) {
       sets.push(`is_active = ?`);
       params.push(dto.is_active);
     }
@@ -339,12 +311,12 @@ export class UserRepo {
     // check by keycloak_id from db
     const exists = await this.getUserByKeycloakId(keycloakId);
     if (exists) {
-      this.log.info({ keycloakId }, "User already exists");
+      console.log({ keycloakId }, "User already exists");
       return exists;
     }
 
     //check keycloak api
-    this.log.info({ keycloakId }, "Fetching user from keycloak api...");
+    console.log({ keycloakId }, "Fetching user from keycloak api...");
     const keycloakUser = await keycloakClient.getUserById(keycloakId);
     if (!keycloakUser) {
       throw {
@@ -353,7 +325,7 @@ export class UserRepo {
       };
     }
 
-    this.log.info(
+    console.log(
       {
         keycloakId,
         email: keycloakUser.email,
@@ -365,7 +337,7 @@ export class UserRepo {
     // ── 3. Map Keycloak data → bank profile ────────────────
     const profile = mapKcUser(keycloakUser);
 
-    this.log.info(
+    console.log(
       {
         email: keycloakUser.email,
         role: profile.role,
@@ -384,20 +356,16 @@ export class UserRepo {
 
     if (byEmail[0]) {
       await this.db.query(
-        `
-            UPDATE users SET
-              keycloak_id  = ?, 
-             keycloak_pk  = ?,
-             full_name     = ?,
-             role = case when role ='maker' then ? else role end,
+        `UPDATE users SET
+              keycloak_id   = ?,
+              full_name     = ?,
+              role          = CASE WHEN role = 'maker' THEN ? ELSE role END,
               branch_id     = CASE WHEN branch_id = '' OR branch_id IS NULL THEN ? ELSE branch_id END,
-             department_id = COALESCE(department_id, ?),
-             employee_code = CASE WHEN employee_code = '' THEN ? ELSE employee_code END
-         WHERE id = ?
-            `,
+              department_id = COALESCE(department_id, ?),
+              employee_code = CASE WHEN employee_code = '' THEN ? ELSE employee_code END
+         WHERE id = ?`,
         [
           keycloakId,
-          keycloakUser.id,
           keycloakUser.username,
           profile.role,
           profile.branchId,
@@ -406,11 +374,11 @@ export class UserRepo {
           byEmail[0].id,
         ],
       );
-      this.log.info(
+      console.log(
         {
           id: byEmail[0].id,
         },
-        `Existing user ${byEmail[0].id} synced with Authentik`,
+        `Existing user ${byEmail[0].id} synced with Keycloak`,
       );
       const updated = await this.getUserById(byEmail[0].id);
       return updated!;
@@ -422,13 +390,11 @@ export class UserRepo {
 
     await this.db.query(
       `INSERT INTO users
-         (id, authentik_id, authentik_pk, employee_code,
-          full_name, email, role, branch_id, department_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, keycloak_id, employee_code, full_name, email, role, branch_id, department_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         keycloakId,
-        keycloakUser.id,
         profile.employeeCode || keycloakUser.username,
         keycloakUser.username,
         keycloakUser.email,
@@ -438,7 +404,7 @@ export class UserRepo {
       ],
     );
 
-    this.log.info(
+    console.log(
       {
         id,
         email: keycloakUser.email,
@@ -452,7 +418,7 @@ export class UserRepo {
     return user!;
   }
 
-  // ── Sync profile: refresh ຈາກ Authentik ─────────────────
+  // ── Sync profile: refresh ຈາກ Keycloak ──────────────────
   // ເອີ້ນ manual ຫຼື scheduled ເພື່ອ sync role/branch ໃໝ່
   async syncFromAuth(userId: string): Promise<BankUser> {
     const user = await this.getUserById(userId);
@@ -485,21 +451,22 @@ export class UserRepo {
         userId,
       ],
     );
-    this.log.info(
+    console.log(
       {
         userId,
         role: profile.role,
       },
-      `User ${userId} synced with Authentik`,
+      `User ${userId} synced with Keycloak`,
     );
     return (await this.getUserById(userId))!;
   }
 
   // ── updateLastLogin ───────────────────────────────────────
   async updateLastLogin(userId: string): Promise<void> {
-    await this.db.query(`UPDATE users SET last_login = now(3) WHERE id = ?`, [
-      userId,
-    ]);
+    await this.db.query(
+      `UPDATE users SET last_login_at = now(3) WHERE id = ?`,
+      [userId],
+    );
   }
 
   // ── Provision (auto-create ເມື່ອ first login) ─────────────
@@ -518,19 +485,19 @@ export class UserRepo {
       email,
     ]);
     if (byEmail[0]) {
-      await this.db.query(``, [keycloakId, byEmail[0].id]);
+      await this.db.query(`UPDATE users SET keycloak_id = ? WHERE id = ?`, [
+        keycloakId,
+        byEmail[0].id,
+      ]);
       return { ...byEmail[0], keycloak_id: keycloakId };
     }
-
-    // ສ້າງ user ໃໝ່ ດ້ວຍ default role = 'maker'
-    // Admin ຕ້ອງ assign role + branch ຈາກ admin panel
 
     const id = randomUUID();
     const defaultBranchId = `11111111-0000-0000-0000-000000000001`;
 
-    await this.db.execute(
-      `INSERT INTO users (id, authentik_id, employee_code, full_name, email, role, branch_id, is_active) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)  `,
+    await this.db.query(
+      `INSERT INTO users (id, keycloak_id, employee_code, full_name, email, role, branch_id, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         keycloakId,
@@ -550,7 +517,7 @@ export class UserRepo {
         message: "Failed to provision user",
       };
     }
-    this.log.info({ id, email }, "Provisioned user");
+    console.log({ id, email }, "Provisioned user");
     return user;
   }
 }

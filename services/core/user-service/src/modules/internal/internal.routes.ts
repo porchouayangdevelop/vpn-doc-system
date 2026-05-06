@@ -1,93 +1,84 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import UserService from "@/modules/users/user.service";
 import { Type, type Static } from "@sinclair/typebox";
-import { authentikClient } from "@/lib/authentik-client";
+import { keycloakClient } from "@/lib/keycloak-client";
 
-const AuthentikSchema = Type.Object({
-  authentikId: Type.String(),
+const KeycloakParamsSchema = Type.Object({
+  keycloakId: Type.String(),
 });
 
-const AuthentikArraySchema = Type.Array(AuthentikSchema);
-
-const AuthentikSuccessResponseSchema = Type.Object({
+const SuccessResponseSchema = Type.Object({
   success: Type.Boolean(),
   error: Type.Optional(Type.String()),
   message: Type.Optional(Type.String()),
   data: Type.Optional(Type.Any()),
 });
 
-const AuthentikErrorResponseSchema = Type.Object({
+const ErrorResponseSchema = Type.Object({
   success: Type.Boolean(),
   error: Type.String(),
   message: Type.String(),
   data: Type.Optional(Type.Any()),
 });
 
-const AuthentikBody = Type.Object({
-  authentikId: Type.String(),
+const ProvisionBody = Type.Object({
+  keycloakId: Type.String(),
   email: Type.String({ format: "email" }),
   fullName: Type.String({ maxLength: 100, minLength: 2 }),
   employeeCode: Type.String({ maxLength: 50, minLength: 2 }),
 });
 
-type Authentik = Static<typeof AuthentikSchema>;
-type AuthentikArray = Static<typeof AuthentikArraySchema>;
-type AuthentikSuccessResponse = Static<typeof AuthentikSuccessResponseSchema>;
-type AuthentikErrorResponse = Static<typeof AuthentikErrorResponseSchema>;
-type AuthentikBody = Static<typeof AuthentikBody>;
+type ProvisionBody = Static<typeof ProvisionBody>;
 
 export default async function internalRoutes(app: FastifyInstance) {
-  const userService = new UserService(app);
+  const userService = app.diContainer.resolve("userService") as UserService;
   app.addHook("preHandler", app.requireInternalSecret);
 
   app.get(
-    `/users/by-authentik/:authentikId`,
+    `/users/by-keycloak/:keycloakId`,
     {
       schema: {
-        summary: "Get user by authentikId",
+        summary: "Get user by keycloakId",
         tags: ["Internal"],
         security: [{ bearerAuth: [] }],
-        params: AuthentikSchema,
+        params: KeycloakParamsSchema,
         response: {
-          200: AuthentikSuccessResponseSchema,
-          404: AuthentikErrorResponseSchema,
+          200: SuccessResponseSchema,
+          404: ErrorResponseSchema,
         },
       },
     },
 
     async (
-      req: FastifyRequest<{ Params: { authentikId: string } }>,
+      req: FastifyRequest<{ Params: { keycloakId: string } }>,
       reply: FastifyReply,
     ) => {
-      const { authentikId } = req.params;
+      const { keycloakId } = req.params;
 
-      const cached = await userService.getUserByAuthentikId(authentikId);
+      const cached = await userService.getUserByKeycloakId(keycloakId);
       if (cached) {
         return reply.code(200).send({
           success: true,
-          message: `User with authentikId ${authentikId} found`,
+          message: `User with keycloakId ${keycloakId} found`,
           data: cached,
         });
       }
 
       try {
-        const user = await userService.provisionUserByAuthentikId(authentikId);
+        const user = await userService.provisionUserByKeycloakId(keycloakId);
         return reply.code(200).send({
           success: true,
-          message: `User with authentikId ${authentikId} provisioned`,
+          message: `User with keycloakId ${keycloakId} provisioned`,
           data: user,
         });
       } catch (error: any | unknown) {
-        const e = error as {
-          statusCode?: number;
-          message?: string;
-        };
+        const e = error as { statusCode?: number; message?: string };
         if (e.statusCode === 404) {
           return reply.code(404).send({
             success: false,
             error: "NOT_FOUND",
             statusCode: 404,
-            message: `User with authentikId ${authentikId} not found`,
+            message: `User with keycloakId ${keycloakId} not found`,
           });
         } else {
           return reply.code(e.statusCode ?? 500).send({
@@ -96,31 +87,26 @@ export default async function internalRoutes(app: FastifyInstance) {
             statusCode: 500,
             message:
               e.message ??
-              `User with authentikId ${authentikId} provision failed`,
+              `User with keycloakId ${keycloakId} provision failed`,
           });
         }
       }
     },
   );
 
-  // ──────────────────────────────────────────────────────────
-  // POST /internal/users/sync/:userId
-  // Force re-sync ຈາກ Authentik (role ປ່ຽນ, branch ຍ້າຍ)
-  // ──────────────────────────────────────────────────────────
   app.post(
-    `
-    /users/sync/:userId`,
+    `/users/sync/:userId`,
     {
       schema: {
-        summary: "Sync user from Authentik",
+        summary: "Sync user from Keycloak",
         tags: ["Internal"],
         security: [{ bearerAuth: [] }],
         params: Type.Object({
           userId: Type.String(),
         }),
         response: {
-          200: AuthentikSuccessResponseSchema,
-          404: AuthentikErrorResponseSchema,
+          200: SuccessResponseSchema,
+          404: ErrorResponseSchema,
         },
       },
     },
@@ -130,17 +116,14 @@ export default async function internalRoutes(app: FastifyInstance) {
     ) => {
       const { userId } = req.params;
       try {
-        const user = await userService.syncFromAuthentik(userId!);
+        const user = await userService.syncFromAuth(userId!);
         return reply.code(200).send({
           success: true,
-          message: `User with id ${userId} synced from Authentik`,
+          message: `User with id ${userId} synced from Keycloak`,
           data: user,
         });
       } catch (error: any | unknown) {
-        const e = error as {
-          statusCode?: number;
-          message?: string;
-        };
+        const e = error as { statusCode?: number; message?: string };
         if (e.statusCode === 404) {
           return reply.code(404).send({
             success: false,
@@ -160,23 +143,19 @@ export default async function internalRoutes(app: FastifyInstance) {
     },
   );
 
-  // ──────────────────────────────────────────────────────────
-  // GET /internal/authentik/users/:uuid
-  // Debug: ເບິ່ງ raw Authentik user data
-  // ──────────────────────────────────────────────────────────
   app.get(
-    `/authentik/users/:uuid`,
+    `/keycloak/users/:uuid`,
     {
       schema: {
-        summary: "Debug: view raw Authentik user data",
+        summary: "Debug: view raw Keycloak user data",
         tags: ["Internal"],
         security: [{ bearerAuth: [] }],
         params: Type.Object({
           uuid: Type.String(),
         }),
         response: {
-          200: AuthentikSuccessResponseSchema,
-          404: AuthentikErrorResponseSchema,
+          200: SuccessResponseSchema,
+          404: ErrorResponseSchema,
         },
       },
     },
@@ -185,7 +164,7 @@ export default async function internalRoutes(app: FastifyInstance) {
       reply: FastifyReply,
     ) => {
       const { uuid } = req.params;
-      const user = await authentikClient.getFullUser(uuid);
+      const user = await keycloakClient.getUserById(uuid);
       if (!user) {
         return reply.code(404).send({
           success: false,
@@ -203,8 +182,6 @@ export default async function internalRoutes(app: FastifyInstance) {
     },
   );
 
-  // POST /internal/users/provision
-  // Gateway ເອີ້ນ ເມື່ອ user login ຄັ້ງທຳອິດ
   app.post(
     `/users/provision`,
     {
@@ -212,19 +189,19 @@ export default async function internalRoutes(app: FastifyInstance) {
         summary: "Provision user",
         tags: ["Internal"],
         security: [{ bearerAuth: [] }],
-        body: AuthentikBody,
+        body: ProvisionBody,
         response: {
-          200: AuthentikSuccessResponseSchema,
-          404: AuthentikErrorResponseSchema,
+          200: SuccessResponseSchema,
+          404: ErrorResponseSchema,
         },
       },
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const { authentikId, email, fullName, employeeCode } =
-        req.body as AuthentikBody;
+      const { keycloakId, email, fullName, employeeCode } =
+        req.body as ProvisionBody;
 
       const user = await userService.provisionUser(
-        authentikId,
+        keycloakId,
         fullName,
         email,
         employeeCode,
@@ -235,11 +212,11 @@ export default async function internalRoutes(app: FastifyInstance) {
           success: false,
           error: "NOT_FOUND",
           statusCode: 404,
-          message: `User with authentikId ${authentikId} not found`,
+          message: `User with keycloakId ${keycloakId} not found`,
         });
       return reply.code(200).send({
         success: true,
-        message: `User with authentikId ${authentikId} found`,
+        message: `User with keycloakId ${keycloakId} found`,
         data: user,
       });
     },

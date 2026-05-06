@@ -13,7 +13,7 @@ export default fp(
         info: {
           title: "VPN Doc — User Service",
           description:
-            "ຈັດການ Bank User Profile, Role, Branch ແລະ Authentik sync",
+            "ຈັດການ Bank User Profile, Role, Branch ແລະ Keycloak sync",
           version: "1.0.0",
           contact: {
             name: "IT Team",
@@ -36,13 +36,12 @@ export default fp(
         ],
         components: {
           securitySchemes: {
-            // ── Bearer token ຈາກ Authentik ─────────────────
             bearerAuth: {
               type: "http",
               scheme: "bearer",
               bearerFormat: "JWT",
               description:
-                "Access token ຈາກ Authentik OIDC. Format: `Bearer <token>`",
+                "Access token ຈາກ Keycloak OIDC. Format: `Bearer <token>`",
             },
             // ── Internal secret header ──────────────────────
             internalSecret: {

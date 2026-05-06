@@ -26,26 +26,12 @@ const schema = Type.Object({
   POSTGRES_DB: Type.Optional(Type.String()),
   POSTGRES_URL: Type.Optional(Type.String()),
 
-  // Authentik
-  AUTHENTIK_URL: Type.String(),
-  AUTHENTIK_API_TOKEN: Type.String(),
-  AUTHENTIK_ROLE_ATTR: Type.Optional(Type.String()),
-  AUTHENTIK_BRANCH_ATTR: Type.Optional(Type.String()),
-  AUTHENTIK_DEPT_ATTR: Type.Optional(Type.String()),
-  AUTHENTIK_EMP_CODE_ATTR: Type.Optional(Type.String()),
-  
-
-  //call authentik
-  AUTHENTIK_CLIENT_ID: Type.String(),
-  AUTHENTIK_CLIENT_SECRET: Type.String(),
-  AUTHENTIK_TOKEN_URL: Type.String(),
-  AUTHENTIK_REVOKE_URL: Type.String(),
-  AUTHENTIK_OPEN_ID_URL: Type.Optional(Type.String()),
-  AUTHENTIK_LOGOUT_URL: Type.Optional(Type.String()),
-  AUTHENTIK_AUTHORIZE_URL: Type.Optional(Type.String()),
-  AUTHENTIK_ISSUER_URL: Type.Optional(Type.String()),
-  AUTHENTIK_JWKS_URL: Type.Optional(Type.String()),
-  AUTHENTIK_USER_INFO_URL: Type.Optional(Type.String()),
+  // Keycloak — user-facing client
+  KEYCLOAK_URL: Type.String(),
+  KEYCLOAK_BASE_URL: Type.String(),
+  KEYCLOAK_REALM: Type.String(),
+  KEYCLOAK_CLIENT_ID: Type.String(),
+  KEYCLOAK_CLIENT_SECRET: Type.String(),
 
   //redis
   REDIS_HOST: Type.String(),
