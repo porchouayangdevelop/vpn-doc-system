@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { LoginSchema, LoginResponseSchema } from "./auth.schema";
+import { LoginDto, LoginResponse } from "./auth.schema";
 import {
   BadGatewayResponseSchema,
   SuccessResponseSchema,
@@ -27,7 +27,7 @@ export default async function authRoute(app: FastifyInstance) {
           },
         ],
         response: {
-          200: LoginResponseSchema,
+          200: LoginResponse,
         },
       },
       preHandler: [app.requireAuth],
@@ -71,20 +71,20 @@ export default async function authRoute(app: FastifyInstance) {
         '> ⚠️ ROPC ຕ້ອງ enable ໃນ Authentik Provider settings',
       ]`,
         security: [],
-        body: LoginSchema,
+        body: LoginDto,
         response: {
-          200: LoginResponseSchema,
+          200: LoginResponse,
         },
       },
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { authService } = req.diScope.cradle;
-      const { email, password } = req.body as {
-        email: string;
+      const { username, password } = req.body as {
+        username: string;
         password: string;
       };
 
-      const user = await authService.signin({ email, password });
+      const user = await authService.signin({ username: username, password });
       if (!user) {
         return reply.status(404).send({
           success: false,

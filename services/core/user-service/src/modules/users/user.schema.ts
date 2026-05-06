@@ -1,16 +1,30 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-export const CreateUserWithAuthentikDto = Type.Object({
+export const CreateUserWithKeycloakDto = Type.Object({
+  id: Type.String(),
+  username: Type.String({
+    minLength: 3,
+    maxLength: 30,
+    description: "Username must be between 3 and 30 characters long.",
+  }),
+  firstName: Type.String(),
+  lastName: Type.String(),
+
   employee_code: Type.String({
     maxLength: 50,
     minLength: 2,
+    description: "Employee code must be between 2 and 50 characters long.",
   }),
   full_name: Type.String({
     maxLength: 100,
     minLength: 2,
+    description: "Full name must be between 2 and 100 characters long.",
   }),
-  email: Type.String({ format: "email" }),
+  email: Type.String({
+    format: "email",
+    description: "Must be a valid email address.",
+  }),
   password: Type.String({
     pattern:
       "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
@@ -53,14 +67,6 @@ export const CreateUserSchema = Type.Object({
     minLength: 8,
     maxLength: 50,
   }),
-
-  // Type.RegExp(
-  //   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-  //   {
-  //     errorMessage:
-  //       "Password must be at least 8 characters long and include uppercase letters, lowercase letters, numbers, and special characters.",
-  //   },
-  // ),
 
   email: Type.String({ format: "email" }),
   role: Type.Union([

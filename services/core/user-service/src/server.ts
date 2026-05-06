@@ -26,9 +26,14 @@ const runServer = async () => {
     }
   };
 
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGQUIT", () => shutdown("SIGQUIT"));
+  if (process.platform === "win32") {
+    // Windows does not support SIGTERM and SIGQUIT, so we listen for SIGINT only
+
+    process.on("SIGINT", () => shutdown("SIGINT"));
+  } else {
+    process.on("SIGINT", () => shutdown("SIGINT"));
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+  }
 
   process.on("uncaughtException", (promise, reason) => {
     console.error(`Unhandled Rejection at:`, promise, "reason", reason);

@@ -12,8 +12,8 @@ if (result.error) {
 }
 
 export const AppConfig = {
-  host: process.env.HOST ?? "0.0.0.0",
-  port: Number(process.env.PORT ?? 3002),
+  host: process.env.HOST!,
+  port: Number(process.env.PORT!),
 
   db: {
     host: process.env.DB_HOST as string,

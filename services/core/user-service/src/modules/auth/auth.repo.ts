@@ -4,8 +4,8 @@ import { type BankUser } from "../users/user.repo";
 import {
   LoginDto,
   LoginResponse,
-  AuthenTokens,
-  AuthentikResponse,
+  AuthTokens,
+  AuthTokenResponse,  AuthTokenResponseSchema,
 } from "./auth.schema";
 import { log } from "console";
 
@@ -60,7 +60,7 @@ export class AuthRepo {
 
   async callAuthentikToken(
     body: Record<string, string>,
-  ): Promise<AuthentikResponse> {
+  ): Promise<AuthTokenResponse> {
     try {
       // const res = await fetch(`${process.env.AUTHENTIK_TOKEN_URL}`, {
       //   dispatcher: agent,
@@ -80,7 +80,9 @@ export class AuthRepo {
 
       params.append("client_id", process.env.AUTHENTIK_CLIENT_ID!);
       params.append("client_secret", process.env.AUTHENTIK_CLIENT_SECRET!);
-      params.append("scope", "openid profile email offline_access");
+      params.append("scope", "openid profile email groups");
+      // params.append("scope", "openid profile email");
+
 
       for (const [key, value] of Object.entries(body)) {
         params.append(key, value);
@@ -104,7 +106,7 @@ export class AuthRepo {
 
       log(res.data);
 
-      const data = res.data as AuthentikResponse;
+      const data = res.data as AuthTokenResponse;
       if (res.status >= 400 || res.data.error) {
         const msg =
           data.error_description ?? data.error ?? "Authentication failed";
@@ -148,11 +150,11 @@ export class AuthRepo {
   }
 
   async signin(dto: LoginDto): Promise<LoginResponse> {
-    console.log({ email: dto.email }, "Signing in...");
+    console.log({ username: dto.username }, "Signing in...");
 
     const tokens = await this.callAuthentikToken({
       grant_type: "password",
-      username: dto.email,
+      username: dto.username,
       password: dto.password,
       // scope: "openid profile email",
     });
@@ -189,11 +191,11 @@ export class AuthRepo {
       refresh_token: tokens.refresh_token,
       expires_in: tokens.expires_in,
       token_type: tokens.token_type,
-      user,
+      ...user,
     };
   }
 
-  async refreshToken(refreshToken: string): Promise<AuthenTokens> {
+  async refreshToken(refreshToken: string): Promise<AuthTokens> {
     log({ refreshToken }, "Refresh token called");
 
     const token = await this.callAuthentikToken({
@@ -273,7 +275,7 @@ export class AuthRepo {
 //   --data-urlencode "grant_type=password" \
 //   --data-urlencode "client_id=dCpbd8zsWbERpSsMnchADrVYbaikVDd6213kuPZd" \
 //   --data-urlencode "client_secret=VfYyJkhW5qKVII288trjFZxhXjOT6EpliTs8NuGppckI3m5VIv9uQ4yyeG3daIJgwazJaWdm9em86956zD4bhye1sM7EhbYZ2pu1yOKionDS9UQUZB1RDgn8d7ZfNLBx" \
-//   --data-urlencode "username=akaadmin" \
+//   --data-urlencode "username=porchouayang@pordev.pro" \
 //   --data-urlencode "password=Por@2026" \
 //   --data-urlencode "scope=openid profile email" \
 //   -k

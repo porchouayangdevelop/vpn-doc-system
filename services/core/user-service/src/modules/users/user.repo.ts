@@ -1,17 +1,16 @@
-import { mapAuthentikToBankProfile } from "@/lib/authentik-mapper";
 import { Pool } from "mariadb";
-
 import { User, UpdateUser, ListUsers } from "./user.schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
-import { authentikClient } from "@/lib/authentik-client";
 import { Type, type Static } from "@sinclair/typebox";
 import { Db } from "@/plugins/db";
+import { keycloakClient } from "@/lib/keycloak-client";
+import { mapKcUser } from "@/lib/keycloak-mapper";
 
 export const BankUser = Type.Object({
   id: Type.String(),
-  authentik_id: Type.String(),
-  authentik_pk: Type.Number(),
+  keycloak_id: Type.String(),
+  // keycloak_pk: Type.Number(),
   employee_code: Type.String(),
   full_name: Type.String(),
   email: Type.String(),
@@ -63,7 +62,7 @@ export class UserRepo {
   //   1. ສ້າງ account ໃນ Authentik API
   //   2. Assign ໄປ group ຕາມ role
   //   3. ສ້າງ bank profile ໃນ DB
-  async createUserWithAuthentik(dto: User): Promise<BankUser> {
+  async createUserWithKeycloak(dto: User): Promise<BankUser> {
     const exists = await this.db.query<BankUser[]>(
       `SELECT id FROM users WHERE employee_code = ? or email = ?`,
       [dto.employee_code, dto.email],
@@ -75,22 +74,14 @@ export class UserRepo {
       };
     }
 
-    this.log.info({ email: dto.email }, "Creating user in Authentik...");
+    this.log.info({ email: dto.email }, "Creating user in Keycloak...");
 
-    const authentikUser = await authentikClient.createUser({
-      username: dto.employee_code,
-      name: dto.full_name,
-      email: dto.email,
-      password: dto.password,
-      attributes: {
-        employee_code: dto.employee_code,
-        branch_id: dto.branch_id,
-        department_id: dto.department_id ?? null,
-        role: dto.role,
-      },
+    const keycloakUser = await keycloakClient.createUser({
+      username:dto.
+      
     });
 
-    this.log.info({ authentikId: authentikUser }, "User created in Authentik");
+    this.log.info({ keycloakId: keycloakUser }, "User created in Keycloak");
 
     const ROLE_GROUP_MAP: Record<string, string> = {
       maker: "bank-makers",
@@ -105,15 +96,15 @@ export class UserRepo {
 
     const groupName = ROLE_GROUP_MAP[dto.role];
     if (groupName) {
-      const assigned = await authentikClient.addUserToGroup(
-        authentikUser.pk,
+      const assigned = await keycloakClient.addUserToGroup(
+        keycloakUser.id,
         groupName,
       );
 
       if (!assigned) {
         this.log.warn(
           { groupName },
-          "Failed to assign user to group in Authentik",
+          "Failed to assign user to group in Keycloak",
         );
         throw {
           statusCode: 500,
@@ -124,12 +115,11 @@ export class UserRepo {
 
     const id = randomUUID();
     await this.db.query(
-      `INSERT INTO users (id, authentik_id, authentik_pk, employee_code, full_name, email, role, branch_id, department_id, is_active) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, keycloak_id, employee_code, full_name, email, role, branch_id, department_id, is_active) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        authentikUser.uuid,
-        authentikUser.pk,
+        keycloakUser.id,
         dto.employee_code,
         dto.full_name,
         dto.email,
@@ -139,7 +129,7 @@ export class UserRepo {
         true,
       ],
     );
-    this.log.info({ id }, "User created in both Authentik and DB");
+    this.log.info({ id }, "User created in both Keycloak and DB");
 
     return (await this.getUserById(id))!;
   }
@@ -202,7 +192,7 @@ export class UserRepo {
   async getUserById(id: string): Promise<BankUser | null> {
     const rows = await this.db.query(
       `SELECT 
-        id, authentik_id, employee_code, full_name, email, role, branch_id, department_id, is_active, last_login_at, created_at, updated_at   
+        id, keycloak_id, employee_code, full_name, email, role, branch_id, department_id, is_active, last_login_at, created_at, updated_at   
         FROM users WHERE id = ?`,
       [id],
     );
@@ -210,12 +200,12 @@ export class UserRepo {
     return rows[0] ?? null;
   }
 
-  async getUserByAuthentikId(authentikId: string): Promise<BankUser | null> {
+  async getUserByKeycloakId(keycloakId: string): Promise<BankUser | null> {
     const rows = await this.db.query(
       `SELECT 
-        id, authentik_id, employee_code, full_name, email, role, branch_id, department_id, is_active, last_login_at, created_at, updated_at   
-        FROM users WHERE authentik_id = ? and is_active = 1`,
-      [authentikId],
+        id, keycloak_id, employee_code, full_name, email, role, branch_id, department_id, is_active, last_login_at, created_at, updated_at   
+        FROM users WHERE keycloak_id = ? and is_active = 1`,
+      [keycloakId],
     );
 
     return rows[0] ?? null;
@@ -252,7 +242,7 @@ export class UserRepo {
     const [rows, countRows] = await Promise.all([
       this.db.query<BankUser[]>(
         `SELECT 
-          id, authentik_id, employee_code, full_name, email, role, branch_id, department_id, is_active, last_login_at, created_at, updated_at
+          id, keycloak_id, employee_code, full_name, email, role, branch_id, department_id, is_active, last_login_at, created_at, updated_at
           FROM users WHERE ${where.join(" AND ")} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
         [...params, query.limit, offset],
       ),
@@ -343,61 +333,61 @@ export class UserRepo {
     return true;
   }
 
-  // ── Provision: sync ຈາກ Authentik ────────────────────────
+  // ── Provision: sync ຈາກ Keycloak ────────────────────────
   // ເອີ້ນໂດຍ Gateway ທຸກ request ທີ່ user ∅ ຢູ່ໃນ cache
-  async provisionUserByAuthentikId(authentikId: string): Promise<BankUser> {
-    // check by authentik_id from db
-    const exists = await this.getUserByAuthentikId(authentikId);
+  async provisionUserByKeycloakId(keycloakId: string): Promise<BankUser> {
+    // check by keycloak_id from db
+    const exists = await this.getUserByKeycloakId(keycloakId);
     if (exists) {
-      this.log.info({ authentikId }, "User already exists");
+      this.log.info({ keycloakId }, "User already exists");
       return exists;
     }
 
-    //check authentik api
-    this.log.info({ authentikId }, "Fetching user from authentik api...");
-    const authentikUser = await authentikClient.getFullUser(authentikId);
-    if (!authentikUser) {
+    //check keycloak api
+    this.log.info({ keycloakId }, "Fetching user from keycloak api...");
+    const keycloakUser = await keycloakClient.getUserById(keycloakId);
+    if (!keycloakUser) {
       throw {
         statusCode: 404,
-        message: `User ${authentikId} not found in Authentik`,
+        message: `User ${keycloakId} not found in Keycloak`,
       };
     }
 
     this.log.info(
       {
-        authentikId,
-        email: authentikUser.email,
-        groups: authentikUser.groups_obj?.map((g) => g.name),
+        keycloakId,
+        email: keycloakUser.email,
+        realm: keycloakUser.realmRoles,
       },
-      "Authenktik user fetched",
+      "Keycloak user fetched",
     );
 
-    // ── 3. Map Authentik data → bank profile ────────────────
-    const profile = mapAuthentikToBankProfile(authentikUser);
+    // ── 3. Map Keycloak data → bank profile ────────────────
+    const profile = mapKcUser(keycloakUser);
 
     this.log.info(
       {
-        email: authentikUser.email,
+        email: keycloakUser.email,
         role: profile.role,
         branch: profile.branchId,
         department: profile.departmentId,
         employeeCode: profile.employeeCode,
       },
-      "Authentik user mapped to bank profile",
+      "Keycloak user mapped to bank profile",
     );
 
     // ── 4. ກວດ by email (user ຖືກສ້າງ manual ໄວ້ before) ────
     const byEmail = await this.db.query<BankUser[]>(
       `SELECT * FROM users WHERE email = ?`,
-      [authentikUser.email],
+      [keycloakUser.email],
     );
 
     if (byEmail[0]) {
       await this.db.query(
         `
             UPDATE users SET
-              authentik_id  = ?, 
-             authentik_pk  = ?,
+              keycloak_id  = ?, 
+             keycloak_pk  = ?,
              full_name     = ?,
              role = case when role ='maker' then ? else role end,
               branch_id     = CASE WHEN branch_id = '' OR branch_id IS NULL THEN ? ELSE branch_id END,
@@ -406,9 +396,9 @@ export class UserRepo {
          WHERE id = ?
             `,
         [
-          authentikId,
-          authentikUser.pk,
-          authentikUser.name,
+          keycloakId,
+          keycloakUser.id,
+          keycloakUser.username,
           profile.role,
           profile.branchId,
           profile.departmentId,
@@ -437,11 +427,11 @@ export class UserRepo {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        authentikId,
-        authentikUser.pk,
-        profile.employeeCode || authentikUser.username,
-        authentikUser.name,
-        authentikUser.email,
+        keycloakId,
+        keycloakUser.id,
+        profile.employeeCode || keycloakUser.username,
+        keycloakUser.username,
+        keycloakUser.email,
         profile.role,
         profile.branchId || defaultBranch,
         profile.departmentId,
@@ -451,7 +441,7 @@ export class UserRepo {
     this.log.info(
       {
         id,
-        email: authentikUser.email,
+        email: keycloakUser.email,
         role: profile.role,
         branch: profile.branchId,
       },
@@ -464,17 +454,17 @@ export class UserRepo {
 
   // ── Sync profile: refresh ຈາກ Authentik ─────────────────
   // ເອີ້ນ manual ຫຼື scheduled ເພື່ອ sync role/branch ໃໝ່
-  async syncFromAuthentik(userId: string): Promise<BankUser> {
+  async syncFromAuth(userId: string): Promise<BankUser> {
     const user = await this.getUserById(userId);
     if (!user) throw { statusCode: 404, message: "User not found" };
-    if (!user.authentik_id)
-      throw { statusCode: 400, message: "User has no Authentik ID" };
+    if (!user.keycloak_id)
+      throw { statusCode: 400, message: "User has no Keycloak ID" };
 
-    const authentikUser = await authentikClient.getFullUser(user.authentik_id);
-    if (!authentikUser)
-      throw { statusCode: 404, message: "User not found in Authentik" };
+    const keycloakUser = await keycloakClient.getUserById(user.keycloak_id);
+    if (!keycloakUser)
+      throw { statusCode: 404, message: "User not found in Keycloak" };
 
-    const profile = mapAuthentikToBankProfile(authentikUser);
+    const profile = mapKcUser(keycloakUser);
     await this.db.query(
       `UPDATE users
           SET full_name   = ?,
@@ -486,8 +476,8 @@ export class UserRepo {
           WHERE id = ?
             `,
       [
-        authentikUser.name,
-        authentikUser.email,
+        keycloakUser.username,
+        keycloakUser.email,
         profile.role,
         profile.branchId || user.branch_id,
         profile.departmentId || user.department_id,
@@ -514,13 +504,13 @@ export class UserRepo {
 
   // ── Provision (auto-create ເມື່ອ first login) ─────────────
   async provisionUser(
-    authentikId: string,
+    keycloakId: string,
     fullName: string,
     email: string,
     employeeCode: string,
   ): Promise<BankUser> {
-    // check by authentik_id first
-    let user = await this.getUserByAuthentikId(authentikId);
+    // check by keycloak_id first
+    let user = await this.getUserByKeycloakId(keycloakId);
     if (user) return user;
 
     //check by email
@@ -528,8 +518,8 @@ export class UserRepo {
       email,
     ]);
     if (byEmail[0]) {
-      await this.db.query(``, [authentikId, byEmail[0].id]);
-      return { ...byEmail[0], authentik_id: authentikId };
+      await this.db.query(``, [keycloakId, byEmail[0].id]);
+      return { ...byEmail[0], keycloak_id: keycloakId };
     }
 
     // ສ້າງ user ໃໝ່ ດ້ວຍ default role = 'maker'
@@ -543,7 +533,7 @@ export class UserRepo {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)  `,
       [
         id,
-        authentikId,
+        keycloakId,
         employeeCode,
         fullName,
         email,

@@ -56,75 +56,24 @@ services:
     volumes:
       - redpanda_data:/var/lib/redpanda/data
 
-  # Authentik PostgreSQL
-  authentik_db:
-    image: postgres:16-alpine
-    container_name: vpndoc_authentik_db
+  # Keycloak
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.3
+    container_name: vpndoc_keycloak
     restart: unless-stopped
+    command: start-dev          # dev mode ໃຊ້ H2 in-memory
     environment:
-      POSTGRES_USER:     authentik
-      POSTGRES_PASSWORD: authentikpass123
-      POSTGRES_DB:       authentik
-    volumes:
-      - authentik_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U authentik"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  authentik_redis:
-    image: redis:7.2-alpine
-    container_name: vpndoc_authentik_redis
-    restart: unless-stopped
-    command: --save 60 1 --loglevel warning
-    volumes:
-      - authentik_redis_data:/data
-
-  authentik_server:
-    image: ghcr.io/goauthentik/server:2024.2.2
-    container_name: vpndoc_authentik_server
-    restart: unless-stopped
-    command: server
-    environment:
-      AUTHENTIK_REDIS__HOST:                authentik_redis
-      AUTHENTIK_POSTGRESQL__HOST:           authentik_db
-      AUTHENTIK_POSTGRESQL__USER:           authentik
-      AUTHENTIK_POSTGRESQL__NAME:           authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD:       authentikpass123
-      AUTHENTIK_SECRET_KEY:                 "change-me-in-production-min-50-chars-long!!"
-      AUTHENTIK_ERROR_REPORTING__ENABLED:   "false"
-      AUTHENTIK_LOG_LEVEL:                  info
+      KEYCLOAK_ADMIN:          admin
+      KEYCLOAK_ADMIN_PASSWORD: admin123
+      KC_HTTP_PORT:            8080
+      KC_HOSTNAME_STRICT:      "false"
+      KC_LOG_LEVEL:            INFO
     ports:
-      - "9000:9000"
-      - "9443:9443"
-    depends_on:
-      authentik_db:
-        condition: service_healthy
-      authentik_redis:
-        condition: service_started
+      - "8080:8080"
     volumes:
-      - authentik_media:/media
-
-  authentik_worker:
-    image: ghcr.io/goauthentik/server:2024.2.2
-    container_name: vpndoc_authentik_worker
-    restart: unless-stopped
-    command: worker
-    environment:
-      AUTHENTIK_REDIS__HOST:          authentik_redis
-      AUTHENTIK_POSTGRESQL__HOST:     authentik_db
-      AUTHENTIK_POSTGRESQL__USER:     authentik
-      AUTHENTIK_POSTGRESQL__NAME:     authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: authentikpass123
-      AUTHENTIK_SECRET_KEY:           "change-me-in-production-min-50-chars-long!!"
-    depends_on: [authentik_db, authentik_redis]
-    volumes:
-      - authentik_media:/media
+      - keycloak_data:/opt/keycloak/data
 
 volumes:
   mariadb_data:
   redpanda_data:
-  authentik_db_data:
-  authentik_redis_data:
-  authentik_media:
+  keycloak_data:
