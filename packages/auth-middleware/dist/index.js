@@ -1,14 +1,9 @@
-"use strict";
 // packages/auth-middleware/src/index.ts
 // ທຸກ microservice ໃຊ້ plugin ນີ້ ແທນທີ່ຈະ verify JWT ຕົນເອງ
 // Services ຮັບ request ຜ່ານ Gateway ເທົ່ານັ້ນ
 // Gateway attach X-User-* headers → services trust headers ໂດຍກົງ
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const fastify_plugin_1 = __importDefault(require("fastify-plugin"));
-exports.default = (0, fastify_plugin_1.default)(async (fastify) => {
+import fp from 'fastify-plugin';
+export default fp(async (fastify) => {
     // ── ດຶງ UserContext ຈາກ X-User headers ─────────────────
     function extractUserContext(req) {
         const h = req.headers;
@@ -18,7 +13,7 @@ exports.default = (0, fastify_plugin_1.default)(async (fastify) => {
         if (!userId || !role || !branchId)
             return null;
         return {
-            authentikId: h['x-user-authentik-id'] || '',
+            keycloakId: h['x-user-keycloak-id'] || '',
             userId,
             employeeCode: req.headers['x-user-employee-code'] || '',
             fullName: h['x-user-name'] || '',

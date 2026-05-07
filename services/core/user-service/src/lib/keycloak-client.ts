@@ -70,7 +70,6 @@ class KeycloakClient {
     this.kc = new kcAdminClient({
       baseUrl: process.env.KEYCLOAK_BASE_URL!,
       realmName: this.realm!,
-    
     });
   }
 
@@ -88,7 +87,7 @@ class KeycloakClient {
     try {
       const user = await this.kc.users.findOne({ id, realm: this.realm! });
       console.log(user);
-      
+
       if (!user?.id) return null;
 
       const roleMappings = await this.kc.users.listRealmRoleMappings({
@@ -182,6 +181,54 @@ class KeycloakClient {
       { id, realm: this.realm! },
       { attributes: merged },
     );
+  }
+
+  async updateUser(
+    id: string,
+    data: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      username?: string;
+      enabled?: boolean;
+      attributes?: Record<string, string[]>;
+    },
+  ): Promise<void> {
+    await this.auth();
+    await this.kc.users.update({ id, realm: this.realm! }, data);
+  }
+
+  async disableUser(id: string): Promise<void> {
+    await this.auth();
+    await this.kc.users.update({ id, realm: this.realm! }, { enabled: false });
+    try {
+      await this.kc.users.logout({ id, realm: this.realm! });
+    } catch {
+      // no active sessions — safe to ignore
+    }
+  }
+
+  async logoutUser(id: string): Promise<void> {
+    await this.auth();
+    await this.kc.users.logout({ id, realm: this.realm! });
+  }
+
+  async sendForgotPasswordEmail(id: string): Promise<void> {
+    await this.auth();
+    await this.kc.users.executeActionsEmail({
+      id,
+      realm: this.realm!,
+      actions: ["UPDATE_PASSWORD"],
+    });
+  }
+
+  async resetPassword(id: string, newPassword: string): Promise<void> {
+    await this.auth();
+    await this.kc.users.resetPassword({
+      id,
+      realm: this.realm!,
+      credential: { type: "password", value: newPassword, temporary: false },
+    });
   }
 
   //change realm roles

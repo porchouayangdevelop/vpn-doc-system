@@ -45,7 +45,7 @@ export default async function userRoutes(app: FastifyInstance) {
 
       const user = await authService.getMe(
         req.userCtx.userId,
-        req.userCtx.authentikId,
+        req.userCtx.keycloakId,
       );
       if (!user) {
         return reply.status(404).send({
@@ -79,7 +79,7 @@ export default async function userRoutes(app: FastifyInstance) {
           502: BadGatewayResponseSchema,
         },
       },
-      preHandler: [app.requireRoles(["admin", "it_header", "it_po"])],
+      preHandler: [app.requireRoles(["admin", "it_head", "it_po"])],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { userService, authService } = req.diScope.cradle;
@@ -100,7 +100,7 @@ export default async function userRoutes(app: FastifyInstance) {
       schema: {
         // headers: {
         //   "x-user-id": { type: "string" },
-        //   "x-user-authentik-id": { type: "string" },
+        //   "x-user-keycloak-id": { type: "string" },
         //   "x-user-role": { type: "string" },
         //   "x-user-branch-id": { type: "string" },
         //   "x-user-department-id": { type: "string" },
@@ -125,7 +125,7 @@ export default async function userRoutes(app: FastifyInstance) {
           502: BadGatewayResponseSchema,
         },
       },
-      preHandler: [app.requireRoles(["admin", "it_header"])],
+      preHandler: [app.requireRoles(["admin", "it_head"])],
     },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { userService, authService } = req.diScope.cradle;

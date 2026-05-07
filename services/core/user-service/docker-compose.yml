@@ -18,70 +18,6 @@ services:
       - default
     restart: unless-stopped
 
-  postgresql:
-    env_file:
-      - .env
-    environment:
-      POSTGRES_DB: ${PG_DB:-authentik}
-      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
-      POSTGRES_USER: ${PG_USER:-authentik}
-    healthcheck:
-      interval: 30s
-      retries: 5
-      start_period: 20s
-      test:
-        - CMD-SHELL
-        - pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}
-      timeout: 5s
-    image: docker.io/library/postgres:16-alpine
-    restart: unless-stopped
-    volumes:
-      - database:/var/lib/postgresql/data
-  server:
-    command: server
-    depends_on:
-      postgresql:
-        condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2.2}
-    ports:
-      - ${COMPOSE_PORT_HTTP:-9000}:9000
-      - ${COMPOSE_PORT_HTTPS:-9443}:9443
-    restart: unless-stopped
-    shm_size: 512mb
-    volumes:
-      - ./data:/data
-      - ./custom-templates:/templates
-  worker:
-    command: worker
-    depends_on:
-      postgresql:
-        condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2.2}
-    restart: unless-stopped
-    shm_size: 512mb
-    user: root
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./data:/data
-      - ./certs:/certs
-      - ./custom-templates:/templates
-
   mariadb:
     image: mariadb:latest
     restart: unless-stopped
@@ -116,88 +52,15 @@ services:
       interval: 5s
       timeout: 30s
       retries: 50
-  traefik:
-    image: traefik:v2.5
-    restart: unless-stopped
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "80:80"
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - default
-  authentik-proxy:
-    image: ghcr.io/goauthentik/proxy:latest
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-      - "8443:8443"
-    environment:
-      - AUTHENTIK_INSECURE=false
-      - AUTHENTIK_HOST=https://por.authentik.pro
-      - AUTHENTIK_TOKEN=supersecrettoken
-
-    labels:
-      traefik.enable: true
-      traefik.port: 8000
-      traefik.http.routers.authentik.rule: Host(`app.company`) && PathPrefix(`/outpost.goauthentik.io/`)
-      # `authentik-proxy` refers to the service name in the compose file.
-      traefik.http.middlewares.authentik.forwardauth.address: http://authentik-proxy:8000/outpost.goauthentik.io/auth/traefik
-      traefik.http.middlewares.authentik.forwardauth.trustForwardHeader: true
-      traefik.http.middlewares.authentik.forwardauth.authResponseHeaders:
-        X-authentik-username,X-authentik-groups,X-authentik-entitlements,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
-      # Add the 'authorization' header to authResponseHeaders if you need proxy providers which
-      # send a custom HTTP-Basic Authentication header based on values from authentik
-    volumes:
-      - authentik-data:/data
-    networks:
-      - default
-  whoami:
-    image: containous/whoami
-    restart: unless-stopped
-    labels:
-      traefik.enable: true
-      traefik.http.routers.whoami.rule: Host(`app.company`) && PathPrefix(`/whoami`)
-      traefik.http.routers.whoami.middlewares: authentik@docker
-    networks:
-      - default
 
 networks:
   default:
     driver: bridge
+
 volumes:
   db-data:
     driver: local
     driver_opts:
       type: none
       device: ${PWD}/db-data
-      o: bind
-  database:
-    driver: local
-    driver_opts:
-      type: none
-      device: ${PWD}/database
-      o: bind
-  certificates:
-    driver: local
-    driver_opts:
-      type: none
-      device: ${PWD}/certs
-      o: bind
-  custom-templates:
-    driver: local
-    driver_opts:
-      type: none
-      device: ${PWD}/custom-templates
-      o: bind
-  authentik-data:
-    driver: local
-    driver_opts:
-      type: none
-      device: ${PWD}/authentik-data
       o: bind

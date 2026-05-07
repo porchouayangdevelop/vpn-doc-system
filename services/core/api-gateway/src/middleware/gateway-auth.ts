@@ -4,23 +4,23 @@ import type {
   FastifyRequest,
   FastifyReply,
 } from "fastify";
-import type { AuthentikClaims } from "@vpndoc/shared-types";
+import type { KeycloakClaims } from "@vpndoc/shared-types";
 import * as jose from "jose";
 
 const USER_CTX_TLL = 300; // 5 minutes
 
 async function fetchUserContext(
   app: FastifyInstance,
-  authentikId: string,
-  claims: AuthentikClaims,
+  keycloakId: string,
+  claims: KeycloakClaims,
 ): Promise<Record<string, string>> {
-  const cacheKey = `gateway:user_ctx:${authentikId}`;
+  const cacheKey = `gateway:user_ctx:${keycloakId}`;
   const cached = await app.redis.get(cacheKey);
   if (cached) {
     return JSON.parse(cached) as Record<string, string>;
   }
 
-  const url = `http://${app.config.USER_SERVICE_URL}/api/users/internal/by-authentik/${authentikId}`;
+  const url = `http://${app.config.USER_SERVICE_URL}/api/users/internal/by-keycloak/${keycloakId}`;
   try {
     const res = await fetch(url, {
       headers: {
@@ -39,7 +39,7 @@ async function fetchUserContext(
             "x-internal-secret": app.config.INTERNAL_SECRET!,
           },
           body: JSON.stringify({
-            authentikId,
+            keycloakId,
             email: claims.email ?? "",
             fullName: claims.name ?? "",
             employeeCode: claims.employee_code ?? "",
@@ -63,13 +63,13 @@ async function fetchUserContext(
     }
   } catch (error: FastifyBaseLogger | any) {
     app.log.warn(
-      { error, authentikId },
+      { error, keycloakId },
       "user-service uncreachable - using JWT claims",
     );
   }
 
   return {
-    id: authentikId,
+    id: keycloakId,
     role: (claims["role"] as string) ?? "maker",
     branch_id: (claims["branch_id"] as string) ?? "",
     employee_code: (claims["employee_code"] as string) ?? "",
@@ -88,7 +88,7 @@ export function gatewayAuth(app: FastifyInstance) {
     }
 
     const token = authHeader.slice(7);
-    let claims: jose.JWTPayload & AuthentikClaims;
+    let claims: jose.JWTPayload & KeycloakClaims;
 
     try {
       claims = (await app.verifyToken(token)) as typeof claims;
@@ -106,7 +106,7 @@ export function gatewayAuth(app: FastifyInstance) {
 
     // Inject X-User-* headers → upstream service
     req.headers["x-user-id"] = userCtx["id"] ?? claims.sub!;
-    req.headers["x-user-authentik-id"] = claims.sub!;
+    req.headers["x-user-keycloak-id"] = claims.sub!;
     req.headers["x-user-role"] = userCtx["role"] ?? "maker";
     req.headers["x-user-branch-id"] = userCtx["branch_id"] ?? "";
     req.headers["x-user-department-id"] = userCtx["department_id"] ?? "";
@@ -114,7 +114,6 @@ export function gatewayAuth(app: FastifyInstance) {
     req.headers["x-user-name"] = claims.name ?? "";
     req.headers["x-user-employee-code"] = userCtx["employee_code"] ?? "";
 
-    // ລົບ Authorization header ∅ ໃຫ้ services ເຫັນ JWT ດິບ
     delete req.headers["authorization"];
   };
 }

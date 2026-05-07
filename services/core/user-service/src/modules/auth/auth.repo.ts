@@ -8,6 +8,7 @@ import {
   AuthTokens,
   AuthTokenResponse,
 } from "./auth.schema";
+import { keycloakClient } from "@/lib/keycloak-client";
 
 const kcHttp = axios.create({
   httpsAgent: new https.Agent({ rejectUnauthorized: false }),
@@ -81,7 +82,7 @@ export class AuthRepo {
       };
     }
 
-    await this.userService.updateLastLogin(user.id);
+    await this.userService.updateLastLogin(user.id!);
 
     return {
       access_token: tokens.access_token,
@@ -135,7 +136,10 @@ export class AuthRepo {
         message: "User is inactive. Please contact admin.",
       };
 
-    await this.userService.updateLastLogin(user.id);
+    await this.userService.updateLastLogin(user.id!);
+
+    console.log(user);
+    
     return user;
   }
 
@@ -144,6 +148,40 @@ export class AuthRepo {
     bankUserId: string;
   }> {
     const user = await this.userService.provisionUserByKeycloakId(keycloakId);
-    return { user, bankUserId: user.id };
+    return { user, bankUserId: user.id! };
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const kcUser = await keycloakClient.getUserByEmail(email);
+    if (!kcUser) throw { statusCode: 404, message: "User not found" };
+    await keycloakClient.sendForgotPasswordEmail(kcUser.id);
+  }
+
+  async resetPassword(userId: string, newPassword: string): Promise<void> {
+    const user = await this.userService.getUserById(userId);
+    if (!user?.keycloak_id)
+      throw { statusCode: 404, message: "User not found" };
+    await keycloakClient.resetPassword(user.keycloak_id, newPassword);
+  }
+
+  async changePassword(
+    keycloakId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const kcUser = await keycloakClient.getUserById(keycloakId);
+    if (!kcUser) throw { statusCode: 404, message: "User not found" };
+
+    try {
+      await this.callKcToken({
+        grant_type: "password",
+        username: kcUser.username,
+        password: currentPassword,
+      });
+    } catch {
+      throw { statusCode: 401, message: "Current password is incorrect" };
+    }
+
+    await keycloakClient.resetPassword(keycloakId, newPassword);
   }
 }

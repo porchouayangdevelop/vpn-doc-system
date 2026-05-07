@@ -1,9 +1,14 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { HealthResponseSchema } from "@/schemas";
-import { ResultSetHeader, RowDataPacket } from "@fastify/mysql";
+import { SuccessResponse, ErrorResponse } from "@/schemas";
 import internalRoutes from "@/modules/internal/internal.routes";
 import authRoutes from "@/modules/auth/auth.routes";
 import userRoutes from "@/modules/users/user.routes";
+import { Type } from "@sinclair/typebox";
+
+const HealtSchema = Type.Object({
+  ...SuccessResponse,
+});
+
 export default async function indexRoutes(app: FastifyInstance) {
   app.get(
     `/`,
@@ -12,26 +17,16 @@ export default async function indexRoutes(app: FastifyInstance) {
         summary: "Health check",
         tags: ["Health"],
         response: {
-          200: HealthResponseSchema,
+          200: HealtSchema,
         },
       },
     },
     async (req: FastifyRequest, reply: FastifyReply): Promise<any> => {
-      const results = Promise.all([
-        await app.mysql.query("SELECT 1"),
-        await app.mysql.query(
-          "SELECT date_format(now(), '%Y-%m-%d %H:%i:%s') from dual;",
-        ),
-        app.mysql.query("SELECT  version() from dual;"),
-      ]);
-
-      const data = (await results).flatMap((r) => r[0] as any[]);
-
       return {
         success: true,
         error: null,
         message: "OK",
-        data: data,
+        data: "",
       };
     },
   );
@@ -78,6 +73,6 @@ export default async function indexRoutes(app: FastifyInstance) {
   );
 
   await app.register(internalRoutes, { prefix: "/internal" });
-  await app.register(authRoutes, { prefix: "/api/v1/auth" });
-  await app.register(userRoutes, { prefix: "/api/v1/users" });
+  await app.register(authRoutes, { prefix: "/auth" });
+  await app.register(userRoutes, { prefix: "/users" });
 }

@@ -12,20 +12,20 @@ import { keycloakClient } from "@/lib/keycloak-client";
 import { mapKcUser } from "@/lib/keycloak-mapper";
 
 export const BankUser = Type.Object({
-  id: Type.String(),
-  keycloak_id: Type.String(),
+  id: Type.Optional(Type.String()),
+  keycloak_id: Type.Optional(Type.String()),
   // keycloak_pk: Type.Number(),
-  employee_code: Type.String(),
-  full_name: Type.String(),
-  email: Type.String(),
-  role: Type.String(),
-  branch_id: Type.String(),
+  employee_code: Type.Optional(Type.String()),
+  full_name: Type.Optional(Type.String()),
+  email: Type.Optional(Type.String({ format: "email" })),
+  role: Type.Optional(Type.Any()),
+  branch_id: Type.Optional(Type.String()),
   department_id: Type.Optional(Type.String()),
-  is_active: Type.Boolean(),
+  is_active: Type.Optional(Type.Boolean()),
   last_login_at: Type.Optional(Type.String()),
   password_hash: Type.Optional(Type.String()),
-  created_at: Type.String(),
-  updated_at: Type.String(),
+  created_at: Type.Optional(Type.String()),
+  updated_at: Type.Optional(Type.String()),
 });
 
 export const BankUserList = Type.Object({
@@ -275,10 +275,33 @@ export class UserRepo {
     }
 
     if (sets.length === 0)
-      throw {
-        statusCode: 400,
-        message: "No fields to update",
-      };
+      throw { statusCode: 400, message: "No fields to update" };
+
+    const current = await this.getUserById(id);
+    if (!current) throw { statusCode: 404, message: "User not found" };
+
+    // Sync relevant fields to Keycloak
+    if (current.keycloak_id) {
+      if (dto.email !== undefined) {
+        await keycloakClient.updateUser(current.keycloak_id, { email: dto.email });
+      }
+      if (dto.role !== undefined) {
+        await keycloakClient.assignRealmRoles(current.keycloak_id, dto.role);
+      }
+      if (dto.is_active !== undefined) {
+        if (!dto.is_active) {
+          await keycloakClient.disableUser(current.keycloak_id);
+        } else {
+          await keycloakClient.updateUser(current.keycloak_id, { enabled: true });
+        }
+      }
+      if (dto.branch_id !== undefined || dto.department_id !== undefined) {
+        const attrs: Record<string, string> = {};
+        if (dto.branch_id !== undefined) attrs.branchId = dto.branch_id;
+        if (dto.department_id !== undefined) attrs.department_id = dto.department_id;
+        await keycloakClient.updateUserAttributes(current.keycloak_id, attrs);
+      }
+    }
 
     params.push(id);
     await this.db.query(
@@ -286,21 +309,16 @@ export class UserRepo {
       params,
     );
 
-    const user = await this.getUserById(id);
-    if (!user) {
-      throw {
-        statusCode: 404,
-        message: "User not found",
-      };
-    }
-    return user;
+    return (await this.getUserById(id))!;
   }
 
-  // delete user by admin
+  // delete user by admin — disables in Keycloak and marks inactive in DB
   async deleteUser(id: string): Promise<boolean> {
-    //find user on other active or used
     const user = await this.getUserById(id);
     if (!user) return false;
+    if (user.keycloak_id) {
+      await keycloakClient.disableUser(user.keycloak_id);
+    }
     await this.db.query(`UPDATE users SET is_active = 0 WHERE id = ?`, [id]);
     return true;
   }

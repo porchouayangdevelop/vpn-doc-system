@@ -31,6 +31,22 @@ class AuthService {
   }> {
     return this.authRepo.tokenExchange(keycloakId);
   }
+
+  async forgotPassword(email: string): Promise<void> {
+    return this.authRepo.forgotPassword(email);
+  }
+
+  async resetPassword(userId: string, newPassword: string): Promise<void> {
+    return this.authRepo.resetPassword(userId, newPassword);
+  }
+
+  async changePassword(
+    keycloakId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    return this.authRepo.changePassword(keycloakId, currentPassword, newPassword);
+  }
 }
 
 export default AuthService;

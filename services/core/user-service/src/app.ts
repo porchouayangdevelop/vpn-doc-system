@@ -5,6 +5,7 @@ import Fastify, {
   FastifyRequest,
   FastifyReply,
   FastifyError,
+  errorCodes,
 } from "fastify";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
@@ -76,6 +77,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       }
       if (error.statusCode === 403) {
         reply.status(error.statusCode || Number(403)).send({
+          success: false,
           statusCode: error?.statusCode || Number(403),
           error: error?.message,
           stack: error?.stack,
@@ -84,6 +86,25 @@ export async function buildApp(): Promise<FastifyInstance> {
 
       if (error.statusCode === 500) {
         reply.status(error.statusCode || Number(500)).send({
+          success: false,
+          statusCode: error?.statusCode || Number(500),
+          error: error?.message,
+          stack: error?.stack,
+        });
+      }
+
+      if (error instanceof errorCodes.FST_ERR_BAD_STATUS_CODE) {
+        reply.status(error.statusCode || Number(500)).send({
+          success: false,
+          statusCode: error?.statusCode || Number(500),
+          error: error?.message,
+          stack: error?.stack,
+        });
+      }
+
+      if (error instanceof errorCodes.FST_ERR_FAILED_ERROR_SERIALIZATION) {
+        reply.status(error.statusCode || Number(500)).send({
+          success: false,
           statusCode: error?.statusCode || Number(500),
           error: error?.message,
           stack: error?.stack,

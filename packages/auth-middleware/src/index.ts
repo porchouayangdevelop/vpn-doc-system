@@ -30,7 +30,7 @@ export default fp(async (fastify: FastifyInstance) => {
     if (!userId || !role || !branchId) return null
 
     return {
-      authentikId:  h['x-user-authentik-id'] || '',
+      keycloakId:   h['x-user-keycloak-id'] || '',
       userId,
       employeeCode: (req.headers['x-user-employee-code'] as string) || '',
       fullName:     h['x-user-name'] || '',

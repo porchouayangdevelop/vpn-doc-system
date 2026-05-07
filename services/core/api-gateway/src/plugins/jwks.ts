@@ -12,7 +12,7 @@ declare module "fastify" {
 }
 
 export default fp(async (app: FastifyInstance) => {
-  const jwksUrl = app.config.AUTHENTIK_JWKS_URL!;
+  const jwksUrl = app.config.KEYCLOAK_JWKS_URL!;
 
   async function getKeySet(): Promise<jose.JSONWebKeySet> {
     const cached = await app.redis.get(JWKS_CACHE_KEY);
@@ -20,10 +20,10 @@ export default fp(async (app: FastifyInstance) => {
       return JSON.parse(cached) as jose.JSONWebKeySet;
     }
 
-    app.log.debug("fetching JWKS from Authentik");
+    app.log.debug("fetching JWKS from Keycloak");
     const res = await fetch(jwksUrl, { signal: AbortSignal.timeout(5_000) });
     if (!res.ok)
-      throw new Error(`Failed to fetch JWKS from Authentik : ${res.status}`);
+      throw new Error(`Failed to fetch JWKS from Keycloak : ${res.status}`);
     const jwks = (await res.json()) as jose.JSONWebKeySet;
     await app.redis.set(JWKS_CACHE_KEY, JWKS_CACHE_TTL, () => {
       return JSON.stringify(jwks);
@@ -35,7 +35,7 @@ export default fp(async (app: FastifyInstance) => {
     const jwks = await getKeySet();
     const keySet = jose.createLocalJWKSet(jwks);
     const { payload } = await jose.jwtVerify(token, keySet, {
-      issuer: app.config.AUTHENTIK_ISSUER,
+      issuer: app.config.KEYCLOAK_ISSUER,
     });
 
     return payload;

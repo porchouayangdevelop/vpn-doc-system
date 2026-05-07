@@ -21,7 +21,7 @@ async function authGuardPlugin(app: FastifyInstance) {
       }
 
       req.userCtx = {
-        authentikId: (req.headers["x-user-authentik-id"] as string) ?? "",
+        keycloakId: (req.headers["x-user-keycloak-id"] as string) ?? "",
         userId,
         employeeCode: (req.headers["x-user-employee-code"] as string) ?? "",
         fullName: (req.headers["x-user-full-name"] as string) ?? "",
@@ -39,9 +39,10 @@ async function authGuardPlugin(app: FastifyInstance) {
     "requireRoles",
     (roles: string[]) => async (req: FastifyRequest, reply: FastifyReply) => {
       await app.requireAuth(req, reply);
+      if (reply.sent) return;
 
       const { role } = req.userCtx;
-      if (role !== "admin" && !role.includes(role)) {
+      if (role !== "admin" && !roles.includes(role)) {
         return reply.status(403).send({
           success: false,
           error: "Forbidden",

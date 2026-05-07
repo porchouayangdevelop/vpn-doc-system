@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "PowerShell(Stop-Process *)",
-      "Bash(pnpm dev *)"
+      "Bash(pnpm dev *)",
+      "Bash(pnpm --filter @vpndoc/shared-types build)",
+      "Bash(pnpm exec *)"
     ]
   }
 }

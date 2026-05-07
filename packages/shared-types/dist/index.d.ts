@@ -4,7 +4,7 @@ export type DocType = 'open_teller' | 'close_teller' | 'update_teller' | 'transf
 export type DocStatus = 'draft' | 'pending_unit' | 'pending_branch' | 'pending_dept' | 'pending_it_head' | 'pending_it_po' | 'approved' | 'completed' | 'rejected' | 'cancelled';
 export type ApprovalAction = 'approve' | 'reject' | 'forward' | 'assign' | 'complete';
 export interface UserContext {
-    authentikId: string;
+    keycloakId: string;
     userId: string;
     employeeCode: string;
     fullName: string;
@@ -15,15 +15,16 @@ export interface UserContext {
 }
 export interface XUserHeaders {
     'x-user-id': string;
-    'x-user-authentik-id': string;
+    'x-user-keycloak-id': string;
     'x-user-role': BankRole;
     'x-user-branch-id': string;
     'x-user-department-id': string;
     'x-user-email': string;
     'x-user-name': string;
     'x-user-employee-code': string;
+    'x-internal-secret': string;
 }
-export interface AuthentikClaims {
+export interface KeycloakClaims {
     sub: string;
     email: string;
     name: string;

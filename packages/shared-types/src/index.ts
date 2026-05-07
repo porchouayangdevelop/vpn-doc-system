@@ -23,7 +23,7 @@ export type ApprovalAction =
 
 // ── User context (attached by Gateway) ───────────────────
 export interface UserContext {
-  authentikId:  string
+  keycloakId:   string
   userId:       string
   employeeCode: string
   fullName:     string
@@ -36,7 +36,7 @@ export interface UserContext {
 // ── X-User Headers ────────────────────────────────────────
 export interface XUserHeaders {
   'x-user-id':             string
-  'x-user-authentik-id':   string
+  'x-user-keycloak-id':    string
   'x-user-role':           BankRole
   'x-user-branch-id':      string
   'x-user-department-id':  string
@@ -46,8 +46,8 @@ export interface XUserHeaders {
   'x-internal-secret':         string
 }
 
-// ── Authentik JWT claims ──────────────────────────────────
-export interface AuthentikClaims {
+// ── Keycloak JWT claims ───────────────────────────────────
+export interface KeycloakClaims {
   sub:                  string
   email:                string
   name:                 string
